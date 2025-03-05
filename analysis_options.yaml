@@ -1,0 +1,7 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    sort_constructors_first: false
+    prefer_double_quotes: true
+    lines_longer_than_80_chars: true
