@@ -15,9 +15,10 @@ This widget allows you to animate text. The animation is reminiscent of the text
 
 ## Features
 
-<video width="402" height="874" controls>
-  <source src="https://github.com/user-attachments/assets/d2b13c59-30c8-45e5-8d4b-eadce09c7ef5" type="video/mp4">
-</video>
+<img width="200" src="https://raw.githubusercontent.com/strash/flutter_numeric_text/refs/heads/main/resources/demo.gif"/>
+<!--<video width="402" height="874" controls>-->
+<!--  <source src="https://github.com/user-attachments/assets/d2b13c59-30c8-45e5-8d4b-eadce09c7ef5" type="video/mp4">-->
+<!--</video>-->
 
 - Automatic text animation
 - Minimal configuration required to get started
