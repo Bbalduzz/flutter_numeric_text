@@ -11,29 +11,58 @@ and the Flutter guide for
 [developing packages and plugins](https://flutter.dev/to/develop-packages).
 -->
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+This widget allows you to animate text. The animation is reminiscent of the text animation in SwiftUI's `.numericText(value:)`. The widget is easy to use and allows you to seamlessly replace `Text(data)` with `NumericText(data)`.
 
 ## Features
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+https://github.com/user-attachments/assets/d2b13c59-30c8-45e5-8d4b-eadce09c7ef5
 
-## Getting started
-
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+- Automatic text animation
+- Minimal configuration required to get started
+- Supports most parameters of the `Text(data)` widget
+- No external dependencies required
 
 ## Usage
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
-
 ```dart
-const like = 'sample';
+import 'package:flutter_numeric_text/flutter_numeric_text.dart';
+
+class MyWidget extends StatelessWidget {
+  const MyWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Simply add the widget, and when its value changes, it will automatically
+    // trigger the animation. To use the widget, you only need to provide
+    // a text value, other fields are optional.
+
+    return NumericText(
+      "\$1,234.56",
+      textAlign: TextAlign.center,
+      duration: Durations.medium1,
+      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+        color: Colors.greenAccent,
+      ),
+    );
+  }
+}
 ```
 
-## Additional information
+## Installation
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+To use this package, add it to your `pubspec.yaml` file:
+
+```yaml
+dependencies:
+  flutter_numeric_text: ^1.0.0 # Replace with the latest version
+```
+
+## Contributing
+
+Contributions are welcome! If you have suggestions for improvements or find bugs, please open an issue or submit a pull request.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](https://github.com/strash/flutter_numeric_text/blob/main/LICENSE) file for details.
+
