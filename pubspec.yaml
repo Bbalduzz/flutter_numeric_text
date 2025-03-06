@@ -2,6 +2,13 @@ name: flutter_numeric_text
 description: "This widget allows you to animate text."
 version: 1.0.0
 homepage: https://github.com/strash/flutter_numeric_text
+repository: https://github.com/strash/flutter_numeric_text
+
+topics:
+  - widget
+  - ui
+  - animation
+  - text
 
 environment:
   sdk: ^3.7.0
