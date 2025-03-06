@@ -15,7 +15,9 @@ This widget allows you to animate text. The animation is reminiscent of the text
 
 ## Features
 
-https://github.com/user-attachments/assets/d2b13c59-30c8-45e5-8d4b-eadce09c7ef5
+<video width="402" height="874" controls>
+  <source src="https://github.com/user-attachments/assets/d2b13c59-30c8-45e5-8d4b-eadce09c7ef5" type="video/mp4">
+</video>
 
 - Automatic text animation
 - Minimal configuration required to get started
