@@ -82,16 +82,20 @@ class NumericText extends StatefulWidget {
 
 class _NumericTextState extends State<NumericText>
     with SingleTickerProviderStateMixin {
-  final _repaintKey = GlobalKey();
-
   late String _oldData = widget.data;
+  Duration _delay = Duration.zero;
+  Duration _duration = Duration.zero;
 
   late final _controller = AnimationController(
     vsync: this,
     lowerBound: .0,
     upperBound: 1.0,
-    duration: widget.duration ?? const Duration(milliseconds: 400),
+    duration: widget.duration ?? _defaultDurationPerChange,
   )..addStatusListener(_statusListener);
+
+  Duration get _defaultDurationPerChange {
+    return const Duration(milliseconds: 150);
+  }
 
   void _statusListener(status) {
     if (status == AnimationStatus.completed) {
@@ -99,11 +103,40 @@ class _NumericTextState extends State<NumericText>
     }
   }
 
+  int get _diffCount {
+    final (oldLines, newLines) = (
+      _oldData.split("\n"),
+      widget.data.split("\n"),
+    );
+    int lineIdx = 0;
+    int diffCount = 0;
+    while (oldLines.elementAtOrNull(lineIdx) != null &&
+        newLines.elementAtOrNull(lineIdx) != null) {
+      final oldLineChars = oldLines.elementAtOrNull(lineIdx)?.characters;
+      final newLineChars = newLines.elementAtOrNull(lineIdx)?.characters;
+      final count = max(oldLineChars?.length ?? 0, newLineChars?.length ?? 0);
+      for (var i = 0; i < count; i++) {
+        final pair = (
+          oldLineChars?.elementAtOrNull(i),
+          newLineChars?.elementAtOrNull(i),
+        );
+        if (!pair.isEqual) diffCount++;
+      }
+      lineIdx++;
+    }
+    return diffCount;
+  }
+
   @override
   void didUpdateWidget(covariant NumericText oldWidget) {
     _oldData = oldWidget.data;
+
+    _duration = widget.duration ?? _defaultDurationPerChange;
+    _delay = _duration * .2;
+    _controller.duration = _duration + _delay * max(0, _diffCount - 1);
     _controller.reset();
     _controller.forward();
+
     super.didUpdateWidget(oldWidget);
   }
 
@@ -116,8 +149,11 @@ class _NumericTextState extends State<NumericText>
 
   @override
   Widget build(BuildContext context) {
+    final imax = _controller.duration!.inMicroseconds.toDouble();
+    final delay = _delay.inMicroseconds.toDouble().remap(.0, imax, .0, 1.0);
+    final dur = _duration.inMicroseconds.toDouble().remap(.0, imax, .0, 1.0);
+
     return RepaintBoundary(
-      key: _repaintKey,
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
@@ -129,6 +165,8 @@ class _NumericTextState extends State<NumericText>
             maxLines: widget.maxLines,
             textDirection: widget.textDirection,
             animation: _controller,
+            delay: delay,
+            duration: dur,
           );
         },
       ),
@@ -144,6 +182,8 @@ final class _Text extends LeafRenderObjectWidget {
   final int? maxLines;
   final TextDirection? textDirection;
   final Animation<double> animation;
+  final double delay;
+  final double duration;
 
   const _Text({
     required this.oldData,
@@ -153,6 +193,8 @@ final class _Text extends LeafRenderObjectWidget {
     this.maxLines,
     this.textDirection,
     required this.animation,
+    required this.delay,
+    required this.duration,
   });
 
   TextStyle? _style(BuildContext context) {
@@ -170,6 +212,7 @@ final class _Text extends LeafRenderObjectWidget {
   @override
   RenderObject createRenderObject(BuildContext context) {
     final defaultTextStyle = DefaultTextStyle.of(context);
+
     return _RB(
       data: (oldData, data),
       style: _style(context),
@@ -177,6 +220,8 @@ final class _Text extends LeafRenderObjectWidget {
       maxLines: maxLines ?? defaultTextStyle.maxLines,
       textDirection: textDirection ?? Directionality.of(context),
       animation: animation.value,
+      delay: delay,
+      duration: duration,
     );
   }
 
@@ -190,5 +235,7 @@ final class _Text extends LeafRenderObjectWidget {
     renderObject.maxLines = maxLines ?? defaultTextStyle.maxLines;
     renderObject.textDirection = textDirection ?? Directionality.of(context);
     renderObject.t = animation.value;
+    renderObject.delay = delay;
+    renderObject.duration = duration;
   }
 }

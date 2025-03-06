@@ -8,7 +8,6 @@ final class _Line {
   _Line({this.oldLineMetrics, this.newLineMetrics});
 }
 
-/// A [RenderBox] that renders the text.
 final class _RB extends RenderBox {
   late final TextPainter _oldPainter;
   late final TextPainter _newPainter;
@@ -79,6 +78,18 @@ final class _RB extends RenderBox {
     markNeedsLayout();
   }
 
+  double _delay;
+  set delay(double value) {
+    if (_delay == value) return;
+    _delay = value;
+  }
+
+  double _duration;
+  set duration(double value) {
+    if (_duration == value) return;
+    _duration = value;
+  }
+
   _RB({
     required (String, String) data,
     TextStyle? style,
@@ -86,12 +97,16 @@ final class _RB extends RenderBox {
     int? maxLines,
     required TextDirection textDirection,
     required double animation,
+    required double delay,
+    required double duration,
   }) : _data = data,
        _style = style,
        _textAlign = textAlign,
        _maxLines = maxLines,
        _textDirection = textDirection,
-       _t = animation {
+       _t = animation,
+       _delay = delay,
+       _duration = duration {
     _oldPainter = TextPainter(
       text: _span(_data.$1),
       textAlign: _textAlign,
@@ -117,14 +132,10 @@ final class _RB extends RenderBox {
   }
 
   (Size, Size) _computeSize() {
-    _oldPainter.layout(
-      minWidth: constraints.minWidth,
-      maxWidth: constraints.maxWidth,
-    );
-    _newPainter.layout(
-      minWidth: constraints.minWidth,
-      maxWidth: constraints.maxWidth,
-    );
+    final minWidth = constraints.minWidth;
+    final maxWidth = constraints.maxWidth;
+    _oldPainter.layout(minWidth: minWidth, maxWidth: maxWidth);
+    _newPainter.layout(minWidth: minWidth, maxWidth: maxWidth);
     return (_oldPainter.size, _newPainter.size);
   }
 
@@ -133,10 +144,12 @@ final class _RB extends RenderBox {
     final oldMetrics = _oldPainter.computeLineMetrics();
     final newChars = _data.$2.characters;
     final newMetrics = _newPainter.computeLineMetrics();
+
     int lineIdx = 0;
     int oldLineTextPosOffset = 0;
     int newLineTextPosOffset = 0;
     final List<_Line> pairs = [];
+
     while (oldMetrics.elementAtOrNull(lineIdx) != null &&
         newMetrics.elementAtOrNull(lineIdx) != null) {
       final line = _Line(
@@ -176,35 +189,22 @@ final class _RB extends RenderBox {
 
   @override
   void performLayout() {
-    if (_data.toString().isEmpty) {
+    if (_data.isEmpty) {
       size = Size.zero;
     } else {
-      if (_sizes.$1 == Size.zero && _sizes.$2 == Size.zero) {
-        _sizes = _computeSize();
-      }
-      if (_linesWPairs.isEmpty) {
-        _linesWPairs = _getCharPairs();
-      }
+      if (_sizes.isEmpty) _sizes = _computeSize();
+      if (_linesWPairs.isEmpty) _linesWPairs = _getCharPairs();
+
       final curve = Curves.easeInOut.transform(_t);
-      size = constraints.constrain(
-        Size(
-          curve.lerp(_sizes.$1.width, _sizes.$2.width),
-          curve.lerp(_sizes.$1.height, _sizes.$2.height),
-        ),
-      );
+      size = constraints.constrain(_sizes.lerp(curve));
     }
   }
 
-  // TODO: поочереди выплевывать
   @override
   void paint(PaintingContext context, Offset offset) {
-    if (_data.toString().isEmpty) return;
+    if (_data.isEmpty) return;
 
     final staticCurve = Curves.fastOutSlowIn.transform(_t);
-    final oldACurve = Curves.easeOutQuart.transform(_t);
-    final oldYCurve = Curves.fastEaseInToSlowEaseOut.transform(_t);
-    final newACurve = Curves.easeOutExpo.transform(_t);
-    final newYCurve = Curves.easeOutBack.transform(_t);
 
     for (final line in _linesWPairs) {
       double oldCharWidths = .0;
@@ -213,70 +213,72 @@ final class _RB extends RenderBox {
       final oldMetrics = line.oldLineMetrics;
       final newMetrics = line.newLineMetrics;
 
-      final oldOffstageOffset = (oldMetrics?.height ?? .0) * .19;
-      final newOffstageOffset = (newMetrics?.height ?? .0) * .08;
+      final oldOffstageOffset = (oldMetrics?.height ?? .0) * .16;
+      final newOffstageOffset = (newMetrics?.height ?? .0) * .14;
+
+      int changeIdx = 0;
 
       for (final pair in line.pairs) {
         if (pair.isEqual) {
-          // unchanged data
-          final metrics = line.newLineMetrics ?? line.oldLineMetrics;
+          // draw unchanged data
+          final metrics = newMetrics ?? oldMetrics;
           _charPainter.text = TextSpan(text: pair.$2, style: _style);
           _charPainter.layout();
           final lineOffset = staticCurve.lerp(
             oldMetrics?.left ?? .0,
             newMetrics?.left ?? .0,
           );
-          _charPainter.paint(
-            context.canvas,
-            offset +
-                Offset(
-                  lineOffset + staticCurve.lerp(oldCharWidths, newCharWidths),
-                  (metrics?.lineNumber ?? 0) * (metrics?.height ?? 1.0),
-                ),
-          );
+          final dx =
+              lineOffset + staticCurve.lerp(oldCharWidths, newCharWidths);
+          final dy = (metrics?.lineNumber ?? 0) * (metrics?.height ?? 1.0);
+          _charPainter.paint(context.canvas, offset + Offset(dx, dy));
           oldCharWidths += _charPainter.width;
           newCharWidths += _charPainter.width;
         } else {
-          // old data
+          final start = changeIdx * _delay.clamp(.0, 1.0);
+          final dur = _duration > .0 ? _duration : 1.0;
+          final locT = ((_t - start) / dur).clamp(.0, 1.0);
+          changeIdx++;
+          // draw old data
           if (oldMetrics != null) {
+            final oldACurve = Curves.easeOutQuart
+                .transform(locT)
+                .clamp(.0, 1.0);
+            final oldYCurve = Curves.fastEaseInToSlowEaseOut.transform(locT);
+
             final yOffset =
                 oldMetrics.lineNumber * oldMetrics.height -
                 oldYCurve * oldOffstageOffset;
-            var oldColor = (1.0 - oldACurve).clamp(.0, 1.0);
-            var oldStyle = _style?.copyWith(
-              color: _style?.color?.withValues(alpha: oldColor * .13),
+            final oldStyle = _style?.copyWith(
+              color: _style?.color?.withValues(alpha: (1.0 - oldACurve) * .8),
             );
             _charPainter.text = TextSpan(text: pair.$1, style: oldStyle);
             _charPainter.layout();
-            _charPainter.paint(
-              context.canvas,
-              offset + Offset(oldMetrics.left + oldCharWidths, yOffset),
-            );
-
+            final oldOffset =
+                offset + Offset(oldMetrics.left + oldCharWidths, yOffset);
+            _charPainter.paint(context.canvas, oldOffset);
+            var oldPA = (-4.0 * pow(locT - .5, 2) + 1.0).clamp(.0, 1.0);
             final painter = _Painter(
-              offset: offset + Offset(oldMetrics.left + oldCharWidths, yOffset),
-              color: _style?.color?.withValues(alpha: oldColor * .3),
-              t: _t,
+              offset: oldOffset,
+              color: _style?.color?.withValues(alpha: oldPA * .24),
+              t: oldYCurve,
             );
             painter.paint(context.canvas, _charPainter.size);
-
             oldCharWidths += _charPainter.width;
           }
 
-          // new data
+          // draw new data
           if (newMetrics != null) {
+            final newACurve = Curves.easeOutExpo.transform(locT).clamp(.0, 1.0);
+            final newYCurve = Curves.easeOutBack.transform(locT);
             final yOffset =
                 newMetrics.lineNumber * newMetrics.height -
                 newOffstageOffset +
                 newYCurve * newOffstageOffset;
-            _charPainter.text = TextSpan(
-              text: pair.$2,
-              style: _style?.copyWith(
-                color: _style?.color?.withValues(
-                  alpha: newACurve.clamp(.2, 1.0),
-                ),
-              ),
+            var newStyle = _style?.copyWith(
+              color: _style?.color?.withValues(alpha: newACurve),
             );
+            _charPainter.text = TextSpan(text: pair.$2, style: newStyle);
             _charPainter.layout();
             _charPainter.paint(
               context.canvas,
