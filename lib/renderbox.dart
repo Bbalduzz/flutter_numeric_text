@@ -336,16 +336,16 @@ final class _RB extends RenderBox {
       final oldSize = constraints.constrain(_sizes.$1);
       final newSize = constraints.constrain(_sizes.$2);
 
-      final bool didOverflowHeight =
+      final didOverflowHeight =
           (oldSize.height < _oldPainter.size.height ||
               _oldPainter.didExceedMaxLines) ||
           (newSize.height < _newPainter.size.height ||
               _newPainter.didExceedMaxLines);
-      final bool didOverflowWidth =
+      final didOverflowWidth =
           oldSize.width < _oldPainter.size.width ||
           newSize.width < _newPainter.size.width;
-      final bool hasVisualOverflow = didOverflowWidth || didOverflowHeight;
-      if (hasVisualOverflow) {
+
+      if (didOverflowWidth || didOverflowHeight) {
         switch (_overflow) {
           case TextOverflow.visible:
             _needsClipping = false;
@@ -356,13 +356,11 @@ final class _RB extends RenderBox {
           case TextOverflow.ellipsis:
             _needsClipping = true;
             _overflowShader = null;
-            // replase last pair with ellipsis
+            // replace last pair with ellipsis
             if (_linesWPairs.isNotEmpty) {
               var line = _linesWPairs.elementAt(_linesWPairs.length - 1);
               if (line.pairs.isNotEmpty) {
-                final pairIdx = line.pairs.length - 1;
-                var ellipsisPair = (_kEllipsis, _kEllipsis);
-                line.pairs[pairIdx] = ellipsisPair;
+                line.pairs[line.pairs.length - 1] = (_kEllipsis, _kEllipsis);
               }
             }
           case TextOverflow.fade:
@@ -370,10 +368,7 @@ final class _RB extends RenderBox {
             _charPainter.text = _span(_kEllipsis);
             _charPainter.layout();
             if (didOverflowWidth) {
-              final (
-                double fadeStart,
-                double fadeEnd,
-              ) = switch (_textDirection) {
+              final (fadeStart, fadeEnd) = switch (_textDirection) {
                 TextDirection.rtl => (_charPainter.width, 0.0),
                 TextDirection.ltr => (
                   size.width - _charPainter.width,
@@ -383,15 +378,15 @@ final class _RB extends RenderBox {
               _overflowShader = ui.Gradient.linear(
                 Offset(fadeStart, 0.0),
                 Offset(fadeEnd, 0.0),
-                const <Color>[Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+                const [Color(0xFFFFFFFF), Color(0x00FFFFFF)],
               );
             } else {
-              final double fadeEnd = size.height;
-              final double fadeStart = fadeEnd - _charPainter.height / 2.0;
+              final fadeEnd = size.height;
+              final fadeStart = fadeEnd - _charPainter.height / 2.0;
               _overflowShader = ui.Gradient.linear(
                 Offset(0.0, fadeStart),
                 Offset(0.0, fadeEnd),
-                const <Color>[Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+                const [Color(0xFFFFFFFF), Color(0x00FFFFFF)],
               );
             }
             _charPainter.text = _span("");
@@ -410,7 +405,7 @@ final class _RB extends RenderBox {
     final staticCurve = Curves.fastOutSlowIn.transform(_t);
 
     if (_needsClipping) {
-      final Rect bounds = offset & size;
+      final bounds = offset & size;
       if (_overflowShader != null) {
         context.canvas.saveLayer(bounds, Paint());
       } else {
@@ -507,11 +502,12 @@ final class _RB extends RenderBox {
     if (_needsClipping) {
       if (_overflowShader != null) {
         context.canvas.translate(offset.dx, offset.dy);
-        final Paint paint =
-            Paint()
-              ..blendMode = BlendMode.modulate
-              ..shader = _overflowShader;
-        context.canvas.drawRect(Offset.zero & size, paint);
+        context.canvas.drawRect(
+          Offset.zero & size,
+          Paint()
+            ..blendMode = BlendMode.modulate
+            ..shader = _overflowShader,
+        );
       }
       context.canvas.restore();
     }
