@@ -11,18 +11,18 @@ and the Flutter guide for
 [developing packages and plugins](https://flutter.dev/to/develop-packages).
 -->
 
-This widget allows you to animate text. The animation is reminiscent of the text animation in SwiftUI's `.numericText(value:)`. The widget is easy to use and allows you to seamlessly replace `Text(data)` with `NumericText(data)`.
+This widget allows you to animate any text. The animation is reminiscent of the text animation in SwiftUI's `.numericText(value:)`. The widget is easy to use and allows you to seamlessly replace `Text(data)` with `NumericText(data)`.
 
 ## Features
 
-<img width="200" src="https://raw.githubusercontent.com/strash/flutter_numeric_text/refs/heads/main/resources/demo.gif"/>
+<img width="250" src="https://raw.githubusercontent.com/strash/flutter_numeric_text/refs/heads/main/resources/demo.gif"/>
 <!--<video width="402" height="874" controls>-->
 <!--  <source src="https://github.com/user-attachments/assets/d2b13c59-30c8-45e5-8d4b-eadce09c7ef5" type="video/mp4">-->
 <!--</video>-->
 
 - Automatic text animation
 - Minimal configuration required to get started
-- Supports most parameters of the `Text(data)` widget
+- Supports almost all parameters of the `Text()` widget
 - No external dependencies required
 
 ## Usage
@@ -39,14 +39,17 @@ class MyWidget extends StatelessWidget {
     // trigger the animation. To use the widget, you only need to provide
     // a text value, other fields are optional.
 
-    return NumericText(
-      "\$1,234.56",
+    NumericText(
+      "12345 or text",
+      duration: const Duration(milliseconds: 300),
+      style: const TextStyle(fontSize: 24, color: Colors.black),
       textAlign: TextAlign.center,
-      duration: Durations.medium1,
-      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: Colors.greenAccent,
-      ),
+      textDirection: TextDirection.ltr,
+      locale: const Locale("en", "US"),
+      softWrap: true,
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+      semanticsLabel: "Numeric value",
     );
   }
 }
