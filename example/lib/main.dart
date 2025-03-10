@@ -41,7 +41,6 @@ class _MyWidgetState extends State<MyWidget> {
   final rng = Random();
   String text = "";
   int value = 0;
-  int count = 1;
 
   String randomString(int length) {
     if (length <= 0) throw Exception("Length must be greater then 0");
@@ -53,8 +52,7 @@ class _MyWidgetState extends State<MyWidget> {
   void randomize() {
     setState(() {
       text = randomString(max(1, rng.nextInt(10)));
-      value = rng.nextInt(5000);
-      count++;
+      value = rng.nextInt(500_000);
     });
   }
 
@@ -73,122 +71,73 @@ class _MyWidgetState extends State<MyWidget> {
     final theme = Theme.of(context);
     final isLight =
         MediaQuery.platformBrightnessOf(context) == Brightness.light;
-    final style = theme.textTheme.displaySmall?.copyWith(
+    final style = theme.textTheme.displayLarge?.copyWith(
       fontWeight: FontWeight.w600,
       color: isLight ? const Color(0xFF000000) : const Color(0xFFCCCCED),
     );
     final subStyle = theme.textTheme.bodyLarge?.copyWith(
       color: isLight ? const Color(0xAF000000) : const Color(0xAFCCCCED),
-      height: 1.25,
     );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      spacing: 20.0,
+      spacing: 80.0,
       children: [
+        // -> static random text
         Column(
           children: [
-            NumericText(
-              text,
-              duration: Durations.medium1,
-              textAlign: TextAlign.center,
-              style: style,
-            ),
-            Text(
-              "Some random text",
-              textAlign: TextAlign.center,
-              style: subStyle,
-            ),
+            NumericText(text, duration: Durations.medium1, style: style),
+            Text("Static random text", style: subStyle),
           ],
         ),
-        const SizedBox(height: 20.0),
 
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              NumericText("\$$valueDescription", style: style),
-              Text(
-                "Duration Default\nTextAlign Start",
-                textAlign: TextAlign.start,
-                style: subStyle,
-              ),
-            ],
-          ),
-        ),
-
+        // -> static numeric text
         Column(
           children: [
             NumericText(
               "\$$valueDescription",
               duration: Durations.medium1,
-              textAlign: TextAlign.center,
               style: style,
             ),
-            Text(
-              "Duration Medium1\nTextAlign Center",
-              textAlign: TextAlign.center,
-              style: subStyle,
-            ),
+            Text("Static numeric text", style: subStyle),
           ],
         ),
 
-        Align(
-          alignment: Alignment.centerRight,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              NumericText(
-                "\$$valueDescription",
-                duration: Durations.long1,
-                textAlign: TextAlign.end,
-                style: style,
-              ),
-              Text(
-                "Duration Long1\nTextAlign End",
-                textAlign: TextAlign.end,
-                style: subStyle,
-              ),
-            ],
-          ),
-        ),
-
-        Align(
-          alignment: Alignment.center,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              TweenAnimationBuilder(
-                duration: Durations.long4,
-                curve: Curves.fastEaseInToSlowEaseOut,
-                tween: IntTween(begin: 0, end: value),
-                builder: (context, v, child) {
-                  return NumericText("\$${loc.formatDecimal(v)}", style: style);
-                },
-              ),
-              Text(
-                "Animated text",
-                textAlign: TextAlign.start,
-                style: subStyle,
-              ),
-            ],
-          ),
-        ),
-
+        // -> animated numeric text
         Column(
-          spacing: 5.0,
           children: [
-            FilledButton(onPressed: randomize, child: Text("Randomize")),
-            NumericText(
-              "Randomized\n$count times",
-              duration: Durations.medium2,
-              textAlign: TextAlign.center,
-              style: subStyle,
+            TweenAnimationBuilder(
+              duration: Durations.long1,
+              tween: ColorTween(
+                begin: Colors.white,
+                end: Color.fromARGB(
+                  200,
+                  rng.nextInt(255),
+                  rng.nextInt(255),
+                  rng.nextInt(255),
+                ),
+              ),
+              builder: (context, color, child) {
+                return TweenAnimationBuilder(
+                  duration: Durations.long1,
+                  curve: Curves.fastEaseInToSlowEaseOut,
+                  tween: IntTween(begin: 0, end: value),
+                  builder: (context, v, child) {
+                    return NumericText(
+                      "\$${loc.formatDecimal(v)}",
+                      duration: Durations.long4,
+                      style: style?.copyWith(color: color),
+                    );
+                  },
+                );
+              },
             ),
+            Text("Animated numeric text", style: subStyle),
           ],
         ),
+
+        // -> button
+        FilledButton(onPressed: randomize, child: Text("Randomize")),
       ],
     );
   }

@@ -15,7 +15,7 @@ This widget allows you to animate any text. The animation is reminiscent of the 
 
 ## Features
 
-<img width="250" src="https://raw.githubusercontent.com/strash/flutter_numeric_text/refs/heads/main/resources/demo.gif"/>
+<img width="300" src="https://raw.githubusercontent.com/strash/flutter_numeric_text/refs/heads/main/resources/demo.gif"/>
 <!--<video width="402" height="874" controls>-->
 <!--  <source src="https://github.com/user-attachments/assets/d2b13c59-30c8-45e5-8d4b-eadce09c7ef5" type="video/mp4">-->
 <!--</video>-->
@@ -35,9 +35,11 @@ class MyWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Simply add the widget, and when its value changes, it will automatically
-    // trigger the animation. To use the widget, you only need to provide
-    // a text value, other fields are optional.
+    // Simply add the widget, and when its value changes,
+    // it will automatically trigger the animation.
+
+    // To use the widget, you only need to provide
+    // a data value, other fields are optional.
 
     NumericText(
       "12345 or text",
