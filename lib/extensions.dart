@@ -1,5 +1,14 @@
 part of "./flutter_numeric_text.dart";
 
+const _numberPattern = r"(\d{1,3}(?:[ ,.]\d+)*)";
+final _numberRegex = RegExp(_numberPattern);
+
+extension on String {
+  Iterable<RegExpMatch> get allNumbers {
+    return _numberRegex.allMatches(this);
+  }
+}
+
 extension on (String?, String?) {
   bool get isEqual {
     return $1 == $2;

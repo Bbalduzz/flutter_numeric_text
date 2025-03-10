@@ -3,11 +3,12 @@ import "dart:ui" as ui;
 
 import "package:flutter/widgets.dart";
 
+part "./config.dart";
 part "./extensions.dart";
 part "./painter.dart";
 part "./renderbox.dart";
 
-class NumericText extends StatefulWidget {
+class NumericText extends StatelessWidget {
   /// The text to display.
   final String data;
 
@@ -174,12 +175,65 @@ class NumericText extends StatefulWidget {
   });
 
   @override
-  State<NumericText> createState() => _NumericTextState();
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return _NumericText(
+          data: data,
+          duration: duration,
+          constraints: constraints,
+          config: _NumericTextConfig(
+            style: style,
+            strutStyle: strutStyle,
+            textAlign: textAlign,
+            textDirection: textDirection,
+            locale: locale,
+            softWrap: softWrap,
+            overflow: overflow,
+            textScaler: textScaler,
+            maxLines: maxLines,
+            semanticsLabel: semanticsLabel,
+            textWidthBasis: textWidthBasis,
+            textHeightBehavior: textHeightBehavior,
+          ),
+        );
+      },
+    );
+  }
 }
 
-class _NumericTextState extends State<NumericText>
+class _NumericText extends StatefulWidget {
+  final String data;
+  final Duration? duration;
+  final BoxConstraints constraints;
+  final _NumericTextConfig config;
+
+  const _NumericText({
+    required this.data,
+    this.duration,
+    required this.constraints,
+    required this.config,
+  });
+
+  @override
+  State<_NumericText> createState() => _NumericTextState();
+}
+
+class _NumericTextState extends State<_NumericText>
     with SingleTickerProviderStateMixin {
+  late final TextPainter _oldPainter = TextPainter(
+    text: widget.config.getSpan(context, widget.data),
+    textDirection: widget.config.getTextDirection(context),
+  );
+  late final TextPainter _newPainter = TextPainter(
+    text: widget.config.getSpan(context, widget.data),
+    textDirection: widget.config.getTextDirection(context),
+  );
+
   late String _oldData = widget.data;
+  (Size, Size) _sizes = (Size.zero, Size.zero);
+  List<_Line> _data = [];
+
   Duration _delay = Duration.zero;
   Duration _duration = Duration.zero;
 
@@ -194,89 +248,211 @@ class _NumericTextState extends State<NumericText>
     return const Duration(milliseconds: 150);
   }
 
-  void _statusListener(status) {
+  void _statusListener(AnimationStatus status) {
     if (status == AnimationStatus.completed) {
       _oldData = widget.data;
+      _controller.reset();
+      _updatePainters();
+      _computeSizes();
+      _computeData();
     }
   }
 
-  int get _diffCount {
-    final (oldLines, newLines) = (
-      _oldData.split("\n"),
-      widget.data.split("\n"),
-    );
+  void _updatePainters() {
+    widget.config.update(context, _oldData, _oldPainter);
+    widget.config.update(context, widget.data, _newPainter);
+  }
+
+  void _computeSizes() {
+    final minWidth = widget.constraints.minWidth;
+    final maxWidth =
+        (widget.config.softWrap ?? true) ||
+                widget.config.overflow == TextOverflow.ellipsis
+            ? widget.constraints.maxWidth
+            : double.infinity;
+    _oldPainter.layout(minWidth: minWidth, maxWidth: maxWidth);
+    _newPainter.layout(minWidth: minWidth, maxWidth: maxWidth);
+    _sizes = (_oldPainter.size, _newPainter.size);
+  }
+
+  void _computeData() {
+    final oldChars = _oldData.characters;
+    final newChars = widget.data.characters;
+    final oldMetrics = _oldPainter.computeLineMetrics();
+    final newMetrics = _newPainter.computeLineMetrics();
+
     int lineIdx = 0;
-    int diffCount = 0;
-    while (oldLines.elementAtOrNull(lineIdx) != null &&
-        newLines.elementAtOrNull(lineIdx) != null) {
-      final oldLineChars = oldLines.elementAtOrNull(lineIdx)?.characters;
-      final newLineChars = newLines.elementAtOrNull(lineIdx)?.characters;
-      final count = max(oldLineChars?.length ?? 0, newLineChars?.length ?? 0);
-      for (var i = 0; i < count; i++) {
-        final pair = (
-          oldLineChars?.elementAtOrNull(i),
-          newLineChars?.elementAtOrNull(i),
-        );
-        if (!pair.isEqual) diffCount++;
+    int oldLineTextPosOffset = 0;
+    int newLineTextPosOffset = 0;
+    final List<_Line> pairs = [];
+
+    while (oldMetrics.elementAtOrNull(lineIdx) != null &&
+        newMetrics.elementAtOrNull(lineIdx) != null) {
+      final line = _Line(
+        oldLineMetrics: oldMetrics.elementAtOrNull(lineIdx),
+        newLineMetrics: newMetrics.elementAtOrNull(lineIdx),
+      );
+
+      final oldLineBoundary = _oldPainter.getLineBoundary(
+        TextPosition(offset: oldLineTextPosOffset),
+      );
+      final oldLineChars = oldChars
+          .skip(oldLineBoundary.start)
+          .take(oldLineBoundary.end - oldLineBoundary.start);
+      oldLineTextPosOffset = oldLineBoundary.end + 1;
+      final oldNums = oldLineChars.string.allNumbers;
+
+      final newLineBoundary = _newPainter.getLineBoundary(
+        TextPosition(offset: newLineTextPosOffset),
+      );
+      final newLineChars = newChars
+          .skip(newLineBoundary.start)
+          .take(newLineBoundary.end - newLineBoundary.start);
+      newLineTextPosOffset = newLineBoundary.end + 1;
+      final newNums = newLineChars.string.allNumbers;
+
+      final count = max(oldLineChars.length, newLineChars.length);
+      for (int i = 0; i < count; i++) {
+        line.oldChars.add(oldLineChars.elementAtOrNull(i));
+        line.newChars.add(newLineChars.elementAtOrNull(i));
       }
+
+      // found places before numbers to grow/shrink and fill them
+      if (oldNums.isNotEmpty &&
+          newNums.isNotEmpty &&
+          oldLineChars.length != newLineChars.length) {
+        // (start, length)
+        final List<(int, int)> oldCommands = [];
+        final List<(int, int)> newCommands = [];
+        int oldInsertLength = 0;
+        int newInsertLength = 0;
+        // create commands to execute
+        int numIdx = 0;
+        while (true) {
+          final oldNum = oldNums.elementAtOrNull(numIdx);
+          final newNum = newNums.elementAtOrNull(numIdx);
+          if (oldNum == null || newNum == null) break;
+          var oldNumLength = oldNum.end - oldNum.start;
+          var newNumLength = newNum.end - newNum.start;
+          if (oldNumLength != newNumLength) {
+            if (oldNumLength > newNumLength) {
+              var length = oldNumLength - newNumLength;
+              newCommands.add((newNum.start, length));
+              newInsertLength += length;
+            } else {
+              var length = newNumLength - oldNumLength;
+              oldCommands.add((oldNum.start, length));
+              oldInsertLength += length;
+            }
+          }
+          numIdx++;
+        }
+        // execute commands in revers order
+        for (var i = oldCommands.length - 1; i >= 0; i--) {
+          final command = oldCommands.elementAt(i);
+          for (var j = 0; j < command.$2; j++) {
+            line.oldChars.insert(command.$1 + j, null);
+          }
+        }
+        for (var i = newCommands.length - 1; i >= 0; i--) {
+          final command = newCommands.elementAt(i);
+          for (var j = 0; j < command.$2; j++) {
+            line.newChars.insert(command.$2 + j, null);
+          }
+        }
+        // equalize lengths
+        for (var i = 0; i < (oldInsertLength - newInsertLength).abs(); i++) {
+          if (oldInsertLength > newInsertLength) {
+            if (line.oldChars.isNotEmpty) {
+              if (line.oldChars.last == null) {
+                line.oldChars.removeLast();
+              } else {
+                line.newChars.add(null);
+              }
+            }
+          } else {
+            if (line.newChars.isNotEmpty) {
+              if (line.newChars.last == null) {
+                line.newChars.removeLast();
+              } else {
+                line.oldChars.add(null);
+              }
+            }
+          }
+        }
+      }
+
+      assert(
+        line.oldChars.length == line.newChars.length,
+        "The length of the chars must be equal. "
+        "${line.oldChars} ${line.newChars}",
+      );
+
+      pairs.add(line);
       lineIdx++;
     }
-    return diffCount;
+    _data = pairs;
   }
 
   @override
-  void didUpdateWidget(covariant NumericText oldWidget) {
+  void didUpdateWidget(covariant _NumericText oldWidget) {
     _oldData = oldWidget.data;
-
+    _updatePainters();
+    _computeSizes();
+    _computeData();
+    final diffCount = _data.fold(-1, (prev, curr) => prev + curr.diffCount);
     _duration = widget.duration ?? _defaultDurationPerChange;
     _delay = _duration * .2;
-    _controller.duration = _duration + _delay * max(0, _diffCount - 1);
-    _controller.reset();
-    _controller.forward();
-
+    _controller.duration = _duration + _delay * max(0, diffCount);
+    if (_controller.status != AnimationStatus.forward) {
+      _controller.reset();
+      _controller.forward();
+    }
     super.didUpdateWidget(oldWidget);
   }
 
   @override
   void dispose() {
+    _controller.stop();
     _controller.removeStatusListener(_statusListener);
     _controller.dispose();
+    _oldPainter.dispose();
+    _newPainter.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final imax = _controller.duration!.inMicroseconds.toDouble();
-    final delay = _delay.inMicroseconds.toDouble().remap(.0, imax, .0, 1.0);
-    final dur = _duration.inMicroseconds.toDouble().remap(.0, imax, .0, 1.0);
+    if (_sizes.isEmpty) {
+      _updatePainters();
+      _computeSizes();
+      _computeData();
+    }
+
+    final imax = _controller.duration!.inMilliseconds.toDouble();
+    final delay = _delay.inMilliseconds.toDouble().remap(.0, imax, .0, 1.0);
+    final dur = _duration.inMilliseconds.toDouble().remap(.0, imax, .0, 1.0);
 
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
           Widget result = _Text(
-            oldData: _oldData,
-            data: widget.data,
+            data: _data,
             animation: _controller,
             delay: delay,
             duration: dur,
-            style: widget.style,
-            strutStyle: widget.strutStyle,
-            textAlign: widget.textAlign,
-            textDirection: widget.textDirection,
-            locale: widget.locale,
-            softWrap: widget.softWrap,
-            overflow: widget.overflow,
-            textScaler: widget.textScaler,
-            maxLines: widget.maxLines,
-            textWidthBasis: widget.textWidthBasis,
-            textHeightBehavior: widget.textHeightBehavior,
+            config: widget.config.inferData(context),
+            sizes: _sizes,
+            oldPainter: _oldPainter,
+            newPainter: _newPainter,
           );
 
-          if (widget.semanticsLabel != null) {
+          if (widget.config.semanticsLabel != null) {
             result = Semantics(
-              textDirection: widget.textDirection ?? Directionality.of(context),
-              label: widget.semanticsLabel,
+              textDirection:
+                  widget.config.textDirection ?? Directionality.of(context),
+              label: widget.config.semanticsLabel,
               child: ExcludeSemantics(child: result),
             );
           }
@@ -289,139 +465,78 @@ class _NumericTextState extends State<NumericText>
 }
 
 final class _Text extends LeafRenderObjectWidget {
-  final String oldData;
-  final String data;
+  final List<_Line> data;
   final Animation<double> animation;
   final double delay;
   final double duration;
-
-  final TextStyle? style;
-  final StrutStyle? strutStyle;
-  final TextAlign? textAlign;
-  final TextDirection? textDirection;
-  final Locale? locale;
-  final bool? softWrap;
-  final TextOverflow? overflow;
-  final TextScaler? textScaler;
-  final int? maxLines;
-  final TextWidthBasis? textWidthBasis;
-  final TextHeightBehavior? textHeightBehavior;
+  final _NumericTextConfig config;
+  final (Size, Size) sizes;
+  final TextPainter oldPainter;
+  final TextPainter newPainter;
 
   const _Text({
-    required this.oldData,
     required this.data,
     required this.animation,
     required this.delay,
     required this.duration,
-
-    this.style,
-    this.strutStyle,
-    this.textAlign,
-    this.textDirection,
-    this.locale,
-    this.softWrap,
-    this.overflow,
-    this.textScaler,
-    this.maxLines,
-    this.textWidthBasis,
-    this.textHeightBehavior,
+    required this.config,
+    required this.sizes,
+    required this.oldPainter,
+    required this.newPainter,
   });
-
-  TextStyle? _style(BuildContext context) {
-    final defaultStyle = DefaultTextStyle.of(context);
-    TextStyle? resStyle = style;
-    if (style == null || style!.inherit) {
-      resStyle = defaultStyle.style.merge(style);
-    }
-    if (MediaQuery.boldTextOf(context)) {
-      resStyle = resStyle!.merge(const TextStyle(fontWeight: FontWeight.bold));
-    }
-    return resStyle;
-  }
-
-  TextAlign _textAlign(BuildContext context) {
-    return textAlign ??
-        DefaultTextStyle.of(context).textAlign ??
-        TextAlign.start;
-  }
-
-  TextDirection _textDirection(BuildContext context) {
-    return textDirection ?? Directionality.of(context);
-  }
-
-  Locale _locale(BuildContext context) {
-    return locale ?? Localizations.localeOf(context);
-  }
-
-  bool _softWrap(BuildContext context) {
-    return softWrap ?? DefaultTextStyle.of(context).softWrap;
-  }
-
-  TextOverflow _textOverflow(BuildContext context, TextStyle? style) {
-    return overflow ?? style?.overflow ?? DefaultTextStyle.of(context).overflow;
-  }
-
-  TextScaler _textScaler(BuildContext context) {
-    return textScaler ?? MediaQuery.textScalerOf(context);
-  }
-
-  int? _maxLines(BuildContext context) {
-    return maxLines ?? DefaultTextStyle.of(context).maxLines;
-  }
-
-  TextWidthBasis _textWidthBasis(BuildContext context) {
-    return textWidthBasis ?? DefaultTextStyle.of(context).textWidthBasis;
-  }
-
-  TextHeightBehavior? _textHeightBehavior(BuildContext context) {
-    return textHeightBehavior ??
-        DefaultTextStyle.of(context).textHeightBehavior ??
-        DefaultTextHeightBehavior.maybeOf(context);
-  }
 
   @override
   RenderObject createRenderObject(BuildContext context) {
-    final textStyle = _style(context);
-
     return _RB(
-      data: (oldData, data),
+      data: data,
       animation: animation.value,
       delay: delay,
       duration: duration,
-
-      style: textStyle,
-      strutStyle: strutStyle,
-      textAlign: _textAlign(context),
-      textDirection: _textDirection(context),
-      locale: _locale(context),
-      softWrap: _softWrap(context),
-      overflow: _textOverflow(context, textStyle),
-      textScaler: _textScaler(context),
-      maxLines: _maxLines(context),
-      textWidthBasis: _textWidthBasis(context),
-      textHeightBehavior: _textHeightBehavior(context),
+      config: config,
+      sizes: sizes,
+      oldPainter: oldPainter,
+      newPainter: newPainter,
     );
   }
 
   @override
   void updateRenderObject(BuildContext context, _RB renderObject) {
-    final textStyle = _style(context);
-
-    renderObject.data = (oldData, data);
+    renderObject.data = data;
     renderObject.t = animation.value;
     renderObject.delay = delay;
     renderObject.duration = duration;
-
-    renderObject.style = textStyle;
-    renderObject.strutStyle = strutStyle;
-    renderObject.textAlign = _textAlign(context);
-    renderObject.textDirection = _textDirection(context);
-    renderObject.locale = _locale(context);
-    renderObject.softWrap = _softWrap(context);
-    renderObject.overflow = _textOverflow(context, textStyle);
-    renderObject.textScaler = _textScaler(context);
-    renderObject.maxLines = _maxLines(context);
-    renderObject.textWidthBasis = _textWidthBasis(context);
-    renderObject.textHeightBehavior = _textHeightBehavior(context);
+    renderObject.config = config;
+    renderObject.sizes = sizes;
+    renderObject.oldPainter = oldPainter;
+    renderObject.newPainter = newPainter;
   }
+}
+
+final class _Line {
+  final LineMetrics? oldLineMetrics;
+  final LineMetrics? newLineMetrics;
+  final List<String?> oldChars = [];
+  final List<String?> newChars = [];
+
+  _Line({this.oldLineMetrics, this.newLineMetrics});
+
+  int get diffCount {
+    int count = 0;
+    for (var i = 0; i < newChars.length; i++) {
+      if (oldChars.elementAt(i) != newChars.elementAt(i)) count++;
+    }
+    return count;
+  }
+
+  @override
+  operator ==(covariant _Line other) {
+    return hashCode == other.hashCode;
+  }
+
+  @override
+  int get hashCode =>
+      oldLineMetrics.hashCode +
+      newLineMetrics.hashCode +
+      oldChars.hashCode +
+      newChars.hashCode;
 }

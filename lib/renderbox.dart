@@ -1,106 +1,46 @@
 part of "./flutter_numeric_text.dart";
 
-const String _kEllipsis = "\u2026";
-
-final class _Line {
-  final LineMetrics? oldLineMetrics;
-  final LineMetrics? newLineMetrics;
-  final List<(String?, String?)> pairs = [];
-
-  _Line({this.oldLineMetrics, this.newLineMetrics});
-}
-
 final class _RB extends RenderBox {
-  late final TextPainter _oldPainter;
-  late final TextPainter _newPainter;
-  late final TextPainter _charPainter;
-
-  (Size, Size) _sizes = (Size.zero, Size.zero);
-  List<_Line> _linesWPairs = const [];
-
-  bool _needsClipping = false;
-  ui.Shader? _overflowShader;
-
   _RB({
-    required (String, String) data,
+    required List<_Line> data,
     required double animation,
     required double delay,
     required double duration,
-
-    TextStyle? style,
-    StrutStyle? strutStyle,
-    required TextAlign textAlign,
-    required TextDirection textDirection,
-    required Locale locale,
-    required bool softWrap,
-    required TextOverflow overflow,
-    required TextScaler textScaler,
-    int? maxLines,
-    required TextWidthBasis textWidthBasis,
-    TextHeightBehavior? textHeightBehavior,
+    required _NumericTextConfig config,
+    required (Size, Size) sizes,
+    required TextPainter oldPainter,
+    required TextPainter newPainter,
   }) : _data = data,
        _t = animation,
        _delay = delay,
        _duration = duration,
-
-       _style = style,
-       _strutStyle = strutStyle,
-       _textAlign = textAlign,
-       _textDirection = textDirection,
-       _locale = locale,
-       _softWrap = softWrap,
-       _overflow = overflow,
-       _textScaler = textScaler,
-       _maxLines = maxLines,
-       _textWidthBasis = textWidthBasis,
-       _textHeightBehavior = textHeightBehavior {
-    _oldPainter = TextPainter(
-      text: _span(_data.$1),
-      strutStyle: _strutStyle,
-      textAlign: _textAlign,
-      textDirection: _textDirection,
-      locale: _locale,
-      ellipsis: _overflow == TextOverflow.ellipsis ? _kEllipsis : null,
-      textScaler: _textScaler,
-      maxLines: _maxLines,
-      textWidthBasis: _textWidthBasis,
-      textHeightBehavior: _textHeightBehavior,
-    );
-    _newPainter = TextPainter(
-      text: _span(_data.$2),
-      strutStyle: _strutStyle,
-      textAlign: _textAlign,
-      textDirection: _textDirection,
-      locale: _locale,
-      ellipsis: _overflow == TextOverflow.ellipsis ? _kEllipsis : null,
-      textScaler: _textScaler,
-      maxLines: _maxLines,
-      textWidthBasis: _textWidthBasis,
-      textHeightBehavior: _textHeightBehavior,
-    );
+       _config = config,
+       _sizes = sizes,
+       _oldPainter = oldPainter,
+       _newPainter = newPainter {
     _charPainter = TextPainter(
       text: _span(""),
-      strutStyle: _strutStyle,
-      textAlign: _textAlign,
-      textDirection: _textDirection,
-      locale: _locale,
+      strutStyle: _config.strutStyle,
+      textAlign: _config.textAlign!,
+      textDirection: _config.textDirection,
+      locale: _config.locale,
       ellipsis: null,
-      textScaler: _textScaler,
-      maxLines: _maxLines,
-      textWidthBasis: _textWidthBasis,
-      textHeightBehavior: _textHeightBehavior,
+      textScaler: _config.textScaler!,
+      maxLines: _config.maxLines,
+      textWidthBasis: _config.textWidthBasis!,
+      textHeightBehavior: _config.textHeightBehavior,
     );
   }
 
-  (String, String) _data;
-  set data((String, String) value) {
+  late final TextPainter _charPainter;
+
+  bool _needsClipping = false;
+  ui.Shader? _overflowShader;
+
+  List<_Line> _data;
+  set data(List<_Line> value) {
     if (_data == value) return;
     _data = value;
-    _oldPainter.text = _span(_data.$1);
-    _newPainter.text = _span(_data.$2);
-    _charPainter.text = _span("");
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
     markNeedsLayout();
   }
 
@@ -123,204 +63,30 @@ final class _RB extends RenderBox {
     _duration = value;
   }
 
-  TextStyle? _style;
-  set style(TextStyle? value) {
-    if (_style == value) return;
-    _style = value;
-    _oldPainter.text = _span(_data.$1);
-    _newPainter.text = _span(_data.$2);
-    _charPainter.text = _span("");
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
+  _NumericTextConfig _config;
+  set config(_NumericTextConfig value) {
+    if (_config == value) return;
+    _config = value;
   }
 
-  StrutStyle? _strutStyle;
-  set strutStyle(StrutStyle? value) {
-    if (_strutStyle == value) return;
-    _strutStyle = value;
-    _oldPainter.strutStyle = value;
-    _newPainter.strutStyle = value;
-    _charPainter.strutStyle = value;
-    _overflowShader = null;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
+  (Size, Size) _sizes = (Size.zero, Size.zero);
+  set sizes((Size, Size) value) {
+    if (_sizes == value) return;
+    _sizes = value;
   }
 
-  TextAlign _textAlign;
-  set textAlign(TextAlign value) {
-    if (_textAlign == value) return;
-    _textAlign = value;
-    _oldPainter.textAlign = value;
-    _newPainter.textAlign = value;
-    _charPainter.textAlign = value;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
+  TextPainter _oldPainter;
+  set oldPainter(TextPainter value) {
+    _oldPainter = value;
   }
 
-  TextDirection _textDirection;
-  set textDirection(TextDirection value) {
-    if (_textDirection == value) return;
-    _textDirection = value;
-    _oldPainter.textDirection = value;
-    _newPainter.textDirection = value;
-    _charPainter.textDirection = value;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
-  }
-
-  Locale _locale;
-  set locale(Locale value) {
-    if (_locale == value) return;
-    _locale = value;
-    _oldPainter.locale = value;
-    _newPainter.locale = value;
-    _charPainter.locale = value;
-    _overflowShader = null;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
-  }
-
-  bool _softWrap;
-  set softWrap(bool value) {
-    if (_softWrap == value) return;
-    _softWrap = value;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
-  }
-
-  TextOverflow _overflow;
-  set overflow(TextOverflow value) {
-    if (_overflow == value) return;
-    _overflow = value;
-    _oldPainter.ellipsis = value == TextOverflow.ellipsis ? _kEllipsis : null;
-    _newPainter.ellipsis = value == TextOverflow.ellipsis ? _kEllipsis : null;
-    _charPainter.ellipsis = null;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
-  }
-
-  TextScaler _textScaler;
-  set textScaler(TextScaler value) {
-    if (_textScaler == value) return;
-    _textScaler = value;
-    _oldPainter.textScaler = value;
-    _newPainter.textScaler = value;
-    _charPainter.textScaler = value;
-    _overflowShader = null;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
-  }
-
-  TextWidthBasis _textWidthBasis;
-  set textWidthBasis(TextWidthBasis value) {
-    if (_textWidthBasis == value) return;
-    _textWidthBasis = value;
-    _oldPainter.textWidthBasis = value;
-    _newPainter.textWidthBasis = value;
-    _charPainter.textWidthBasis = value;
-    _overflowShader = null;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
-  }
-
-  TextHeightBehavior? _textHeightBehavior;
-  set textHeightBehavior(TextHeightBehavior? value) {
-    if (_textHeightBehavior == value) return;
-    _textHeightBehavior = value;
-    _oldPainter.textHeightBehavior = value;
-    _newPainter.textHeightBehavior = value;
-    _charPainter.textHeightBehavior = value;
-    _overflowShader = null;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
-  }
-
-  int? _maxLines;
-  set maxLines(int? value) {
-    if (_maxLines == value) return;
-    _maxLines = value;
-    _oldPainter.maxLines = value;
-    _newPainter.maxLines = value;
-    _overflowShader = null;
-    _sizes = _computeSize();
-    _linesWPairs = _getCharPairs();
-    markNeedsLayout();
+  TextPainter _newPainter;
+  set newPainter(TextPainter value) {
+    _newPainter = value;
   }
 
   TextSpan _span(String text) {
-    return TextSpan(text: text, style: _style, locale: _locale);
-  }
-
-  double _adjustMaxWidth(double maxWidth) {
-    return _softWrap || _overflow == TextOverflow.ellipsis
-        ? maxWidth
-        : double.infinity;
-  }
-
-  (Size, Size) _computeSize() {
-    final minWidth = constraints.minWidth;
-    final maxWidth = _adjustMaxWidth(constraints.maxWidth);
-    _oldPainter.layout(minWidth: minWidth, maxWidth: maxWidth);
-    _newPainter.layout(minWidth: minWidth, maxWidth: maxWidth);
-    return (_oldPainter.size, _newPainter.size);
-  }
-
-  List<_Line> _getCharPairs() {
-    final oldChars = _data.$1.characters;
-    final oldMetrics = _oldPainter.computeLineMetrics();
-    final newChars = _data.$2.characters;
-    final newMetrics = _newPainter.computeLineMetrics();
-
-    int lineIdx = 0;
-    int oldLineTextPosOffset = 0;
-    int newLineTextPosOffset = 0;
-    final List<_Line> pairs = [];
-
-    while (oldMetrics.elementAtOrNull(lineIdx) != null &&
-        newMetrics.elementAtOrNull(lineIdx) != null) {
-      final line = _Line(
-        oldLineMetrics: oldMetrics.elementAtOrNull(lineIdx),
-        newLineMetrics: newMetrics.elementAtOrNull(lineIdx),
-      );
-
-      final oldLineBoundary = _oldPainter.getLineBoundary(
-        TextPosition(offset: oldLineTextPosOffset),
-      );
-      final oldLineChars = oldChars
-          .skip(oldLineBoundary.start)
-          .take(oldLineBoundary.end - oldLineBoundary.start);
-      oldLineTextPosOffset = oldLineBoundary.end + 1;
-
-      final newLineBoundary = _newPainter.getLineBoundary(
-        TextPosition(offset: newLineTextPosOffset),
-      );
-      final newLineChars = newChars
-          .skip(newLineBoundary.start)
-          .take(newLineBoundary.end - newLineBoundary.start);
-      newLineTextPosOffset = newLineBoundary.end + 1;
-
-      final count = max(oldLineChars.length, newLineChars.length);
-      for (int i = 0; i < count; i++) {
-        line.pairs.add((
-          oldLineChars.elementAtOrNull(i),
-          newLineChars.elementAtOrNull(i),
-        ));
-      }
-
-      pairs.add(line);
-      lineIdx++;
-    }
-    return pairs;
+    return TextSpan(text: text, style: _config.style, locale: _config.locale);
   }
 
   @override
@@ -328,9 +94,6 @@ final class _RB extends RenderBox {
     if (_data.isEmpty) {
       size = Size.zero;
     } else {
-      if (_sizes.isEmpty) _sizes = _computeSize();
-      if (_linesWPairs.isEmpty) _linesWPairs = _getCharPairs();
-
       final curve = Curves.easeInOut.transform(_t);
       size = constraints.constrain(_sizes.lerp(curve));
       final oldSize = constraints.constrain(_sizes.$1);
@@ -346,7 +109,7 @@ final class _RB extends RenderBox {
           newSize.width < _newPainter.size.width;
 
       if (didOverflowWidth || didOverflowHeight) {
-        switch (_overflow) {
+        switch (_config.overflow!) {
           case TextOverflow.visible:
             _needsClipping = false;
             _overflowShader = null;
@@ -357,18 +120,17 @@ final class _RB extends RenderBox {
             _needsClipping = true;
             _overflowShader = null;
             // replace last pair with ellipsis
-            if (_linesWPairs.isNotEmpty) {
-              var line = _linesWPairs.elementAt(_linesWPairs.length - 1);
-              if (line.pairs.isNotEmpty) {
-                line.pairs[line.pairs.length - 1] = (_kEllipsis, _kEllipsis);
-              }
+            var line = _data.elementAt(_data.length - 1);
+            if (line.newChars.isNotEmpty) {
+              line.oldChars[line.oldChars.length - 1] = _kEllipsis;
+              line.newChars[line.newChars.length - 1] = _kEllipsis;
             }
           case TextOverflow.fade:
             _needsClipping = true;
             _charPainter.text = _span(_kEllipsis);
             _charPainter.layout();
             if (didOverflowWidth) {
-              final (fadeStart, fadeEnd) = switch (_textDirection) {
+              final (fadeStart, fadeEnd) = switch (_config.textDirection!) {
                 TextDirection.rtl => (_charPainter.width, 0.0),
                 TextDirection.ltr => (
                   size.width - _charPainter.width,
@@ -404,8 +166,8 @@ final class _RB extends RenderBox {
 
     final staticCurve = Curves.fastOutSlowIn.transform(_t);
 
+    final bounds = offset & size;
     if (_needsClipping) {
-      final bounds = offset & size;
       if (_overflowShader != null) {
         context.canvas.saveLayer(bounds, Paint());
       } else {
@@ -414,7 +176,7 @@ final class _RB extends RenderBox {
       context.canvas.clipRect(bounds);
     }
 
-    for (final line in _linesWPairs) {
+    for (final line in _data) {
       double oldCharWidths = .0;
       double newCharWidths = .0;
 
@@ -425,12 +187,14 @@ final class _RB extends RenderBox {
       final newOffstageOffset = (newMetrics?.height ?? .0) * .14;
 
       int changeIdx = 0;
+      for (var i = 0; i < line.newChars.length; i++) {
+        final pair = (line.oldChars.elementAt(i), line.newChars.elementAt(i));
+        if (pair.isEmpty) continue;
 
-      for (final pair in line.pairs) {
         if (pair.isEqual) {
           // draw unchanged data
           final metrics = newMetrics ?? oldMetrics;
-          _charPainter.text = TextSpan(text: pair.$2, style: _style);
+          _charPainter.text = TextSpan(text: pair.$2, style: _config.style);
           _charPainter.layout();
           final lineOffset = staticCurve.lerp(
             oldMetrics?.left ?? .0,
@@ -453,47 +217,63 @@ final class _RB extends RenderBox {
                 .transform(locT)
                 .clamp(.0, 1.0);
             final oldYCurve = Curves.fastEaseInToSlowEaseOut.transform(locT);
-
-            final yOffset =
-                oldMetrics.lineNumber * oldMetrics.height -
-                oldYCurve * oldOffstageOffset;
-            final oldStyle = _style?.copyWith(
-              color: _style?.color?.withValues(alpha: (1.0 - oldACurve) * .8),
+            final oldStyle = _config.style?.copyWith(
+              color: _config.style?.color?.withValues(
+                alpha: (1.0 - oldACurve) * .8,
+              ),
             );
-            _charPainter.text = TextSpan(text: pair.$1, style: oldStyle);
-            _charPainter.layout();
-            final oldOffset =
-                offset + Offset(oldMetrics.left + oldCharWidths, yOffset);
-            _charPainter.paint(context.canvas, oldOffset);
-
-            var oldPA = (-4.0 * pow(locT - .5, 2) + 1.0).clamp(.0, 1.0);
-            final painter = _Painter(
-              offset: oldOffset,
-              color: _style?.color?.withValues(alpha: oldPA * .24),
-              t: oldYCurve,
-            );
-            painter.paint(context.canvas, _charPainter.size);
-            oldCharWidths += _charPainter.width;
+            if (pair.$1 == null) {
+              // grow empty space
+              _charPainter.text = TextSpan(text: pair.$2, style: oldStyle);
+              _charPainter.layout();
+              oldCharWidths += _charPainter.width * oldYCurve;
+            } else {
+              // draw char
+              final yOffset =
+                  oldMetrics.lineNumber * oldMetrics.height -
+                  oldYCurve * oldOffstageOffset;
+              _charPainter.text = TextSpan(text: pair.$1, style: oldStyle);
+              _charPainter.layout();
+              final oldOffset =
+                  offset + Offset(oldMetrics.left + oldCharWidths, yOffset);
+              _charPainter.paint(context.canvas, oldOffset);
+              var oldPA = (-4.0 * pow(locT - .5, 2) + 1.0).clamp(.0, 1.0);
+              final painter = _Painter(
+                offset: oldOffset,
+                color: _config.style?.color?.withValues(alpha: oldPA * .24),
+                t: oldYCurve,
+              );
+              painter.paint(context.canvas, _charPainter.size);
+              oldCharWidths += _charPainter.width;
+            }
           }
 
           // draw new data
           if (newMetrics != null) {
             final newACurve = Curves.easeOutExpo.transform(locT).clamp(.0, 1.0);
             final newYCurve = Curves.easeOutBack.transform(locT);
-            final yOffset =
-                newMetrics.lineNumber * newMetrics.height -
-                newOffstageOffset +
-                newYCurve * newOffstageOffset;
-            var newStyle = _style?.copyWith(
-              color: _style?.color?.withValues(alpha: newACurve),
+            var newStyle = _config.style?.copyWith(
+              color: _config.style?.color?.withValues(alpha: newACurve),
             );
-            _charPainter.text = TextSpan(text: pair.$2, style: newStyle);
-            _charPainter.layout();
-            _charPainter.paint(
-              context.canvas,
-              offset + Offset(newMetrics.left + newCharWidths, yOffset),
-            );
-            newCharWidths += _charPainter.width;
+            if (pair.$2 == null) {
+              // shrink empty space
+              _charPainter.text = TextSpan(text: pair.$1, style: newStyle);
+              _charPainter.layout();
+              newCharWidths -= _charPainter.width * (1.0 - newYCurve);
+            } else {
+              // draw char
+              final yOffset =
+                  newMetrics.lineNumber * newMetrics.height -
+                  newOffstageOffset +
+                  newYCurve * newOffstageOffset;
+              _charPainter.text = TextSpan(text: pair.$2, style: newStyle);
+              _charPainter.layout();
+              _charPainter.paint(
+                context.canvas,
+                offset + Offset(newMetrics.left + newCharWidths, yOffset),
+              );
+              newCharWidths += _charPainter.width;
+            }
           }
         }
       }
@@ -515,8 +295,6 @@ final class _RB extends RenderBox {
 
   @override
   void dispose() {
-    _oldPainter.dispose();
-    _newPainter.dispose();
     _charPainter.dispose();
     super.dispose();
   }
