@@ -275,6 +275,16 @@ class _NumericTextState extends State<_NumericText>
     _sizes = (_oldPainter.size, _newPainter.size);
   }
 
+  /// input:
+  /// old | $12.23 abc
+  /// new | $4312.23 c
+  ///
+  /// output:
+  /// old | $ | null | null | 1 | 2 | . | 2 | 3 |   | a |    b |    c |
+  /// new | $ |    4 |    3 | 1 | 2 | . | 2 | 3 |   | c | null | null |
+  ///
+  /// old nulls are growing over the time
+  /// new nulls are srhinking
   void _computeData() {
     final oldChars = _oldData.characters;
     final newChars = widget.data.characters;
@@ -400,9 +410,12 @@ class _NumericTextState extends State<_NumericText>
     _updatePainters();
     _computeSizes();
     _computeData();
-    final diffCount = _data.fold(-1, (prev, curr) => prev + curr.diffCount);
+    final diffCount = _data.fold(
+      -1,
+      (prev, curr) => prev + curr.diffCount + curr.nullsCount,
+    );
     _duration = widget.duration ?? _defaultDurationPerChange;
-    _delay = _duration * .2;
+    _delay = _duration * .18;
     _controller.duration = _duration + _delay * max(0, diffCount);
     if (_controller.status != AnimationStatus.forward) {
       _controller.reset();
@@ -524,6 +537,16 @@ final class _Line {
     int count = 0;
     for (var i = 0; i < newChars.length; i++) {
       if (oldChars.elementAt(i) != newChars.elementAt(i)) count++;
+    }
+    return count;
+  }
+
+  int get nullsCount {
+    int count = 0;
+    for (var i = 0; i < newChars.length; i++) {
+      if (oldChars.elementAt(i) == null || newChars.elementAt(i) == null) {
+        count++;
+      }
     }
     return count;
   }
