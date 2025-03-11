@@ -51,7 +51,7 @@ class _MyWidgetState extends State<MyWidget> {
 
   void randomize() {
     setState(() {
-      text = randomString(max(1, rng.nextInt(10)));
+      text = randomString(max(1, rng.nextInt(8)));
       value = rng.nextInt(500_000);
     });
   }
@@ -86,7 +86,7 @@ class _MyWidgetState extends State<MyWidget> {
         // -> static random text
         Column(
           children: [
-            NumericText(text, duration: Durations.medium1, style: style),
+            NumericText(text, style: style),
             Text("Static random text", style: subStyle),
           ],
         ),

@@ -1,24 +1,10 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
-
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
-
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+## `Text(data)` → `NumericText(data)`
 
 This widget allows you to animate any text. The animation is reminiscent of the text animation in SwiftUI's `.numericText(value:)`. The widget is easy to use and allows you to seamlessly replace `Text(data)` with `NumericText(data)`.
 
 ## Features
 
 <img width="300" src="https://raw.githubusercontent.com/strash/flutter_numeric_text/refs/heads/main/resources/demo.gif"/>
-<!--<video width="402" height="874" controls>-->
-<!--  <source src="https://github.com/user-attachments/assets/d2b13c59-30c8-45e5-8d4b-eadce09c7ef5" type="video/mp4">-->
-<!--</video>-->
 
 - Automatic text animation
 - Minimal configuration required to get started

@@ -1,3 +1,7 @@
+## 1.3.0
+
+* The animations are now much smoother.
+
 ## 1.2.0
 
 * Update the diff logic to properly handle numerics values.
