@@ -284,7 +284,7 @@ class _NumericTextState extends State<_NumericText>
   /// new | $ |    4 |    3 | 1 | 2 | . | 2 | 3 |   | c | null | null |
   ///
   /// old nulls are growing over the time
-  /// new nulls are srhinking
+  /// new nulls are shrinking
   void _computeData() {
     final oldChars = _oldData.characters;
     final newChars = widget.data.characters;
@@ -327,7 +327,7 @@ class _NumericTextState extends State<_NumericText>
         line.newChars.add(newLineChars.elementAtOrNull(i));
       }
 
-      // found places before numbers to grow/shrink and fill them
+      // find slots before numbers to grow/shrink and fill them with nulls
       if (oldNums.isNotEmpty &&
           newNums.isNotEmpty &&
           oldLineChars.length != newLineChars.length) {
@@ -357,7 +357,7 @@ class _NumericTextState extends State<_NumericText>
           }
           numIdx++;
         }
-        // execute commands in revers order
+        // execute commands in reversed order
         for (var i = oldCommands.length - 1; i >= 0; i--) {
           final command = oldCommands.elementAt(i);
           for (var j = 0; j < command.$2; j++) {
@@ -544,7 +544,9 @@ final class _Line {
   int get nullsCount {
     int count = 0;
     for (var i = 0; i < newChars.length; i++) {
-      if (oldChars.elementAt(i) == null || newChars.elementAt(i) == null) {
+      var a = oldChars.elementAt(i);
+      var b = newChars.elementAt(i);
+      if (a != b && (a == null || b == null)) {
         count++;
       }
     }

@@ -1,3 +1,7 @@
+## 1.3.1
+
+* Fix nulls.
+
 ## 1.3.0
 
 * The animations are now much smoother.

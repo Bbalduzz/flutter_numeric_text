@@ -41,6 +41,7 @@ class _MyWidgetState extends State<MyWidget> {
   final rng = Random();
   String text = "";
   int value = 0;
+  int decimal = 0;
 
   String randomString(int length) {
     if (length <= 0) throw Exception("Length must be greater then 0");
@@ -52,12 +53,13 @@ class _MyWidgetState extends State<MyWidget> {
   void randomize() {
     setState(() {
       text = randomString(max(1, rng.nextInt(8)));
-      value = rng.nextInt(500_000);
+      value = rng.nextInt(50_000);
+      decimal = rng.nextInt(100);
     });
   }
 
   String get valueDescription {
-    return loc.formatDecimal(value);
+    return "${loc.formatDecimal(value)}.${decimal.toString().padLeft(2, "0")}";
   }
 
   @override
