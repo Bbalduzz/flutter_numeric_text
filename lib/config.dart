@@ -91,11 +91,28 @@ final class _NumericTextConfig {
     painter.textHeightBehavior = getTextHeightBehavior(context);
   }
 
+  ui.ParagraphStyle getParagraphStyle(BuildContext context) {
+    return getStyle(context).getParagraphStyle(
+      textAlign: getTextAlign(context),
+      strutStyle: strutStyle,
+      textDirection: getTextDirection(context),
+      locale: getLocale(context),
+      ellipsis: overflow == TextOverflow.ellipsis ? _kEllipsis : null,
+      textScaler: getTextScaler(context),
+      maxLines: getMaxLines(context),
+      textHeightBehavior: getTextHeightBehavior(context),
+    );
+  }
+
+  ui.TextStyle getUiTextStyle(BuildContext context) {
+    return getStyle(context).getTextStyle(textScaler: getTextScaler(context));
+  }
+
   TextSpan getSpan(BuildContext context, String text) {
     return TextSpan(text: text, style: style, locale: getLocale(context));
   }
 
-  TextStyle? getStyle(BuildContext context) {
+  TextStyle getStyle(BuildContext context) {
     final defaultStyle = DefaultTextStyle.of(context);
     TextStyle? resStyle = style;
     if (resStyle == null || resStyle.inherit) {
@@ -148,23 +165,38 @@ final class _NumericTextConfig {
   }
 
   @override
-  operator ==(covariant _NumericTextConfig other) {
-    return hashCode == other.hashCode;
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _NumericTextConfig &&
+        style == other.style &&
+        strutStyle == other.strutStyle &&
+        textAlign == other.textAlign &&
+        textDirection == other.textDirection &&
+        locale == other.locale &&
+        softWrap == other.softWrap &&
+        overflow == other.overflow &&
+        textScaler == other.textScaler &&
+        maxLines == other.maxLines &&
+        semanticsLabel == other.semanticsLabel &&
+        textWidthBasis == other.textWidthBasis &&
+        textHeightBehavior == other.textHeightBehavior;
   }
 
   @override
   int get hashCode {
-    return style.hashCode +
-        strutStyle.hashCode +
-        textAlign.hashCode +
-        textDirection.hashCode +
-        locale.hashCode +
-        softWrap.hashCode +
-        overflow.hashCode +
-        textScaler.hashCode +
-        maxLines.hashCode +
-        semanticsLabel.hashCode +
-        textWidthBasis.hashCode +
-        textHeightBehavior.hashCode;
+    return Object.hash(
+      style,
+      strutStyle,
+      textAlign,
+      textDirection,
+      locale,
+      softWrap,
+      overflow,
+      textScaler,
+      maxLines,
+      semanticsLabel,
+      textWidthBasis,
+      textHeightBehavior,
+    );
   }
 }

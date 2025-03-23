@@ -1,3 +1,7 @@
+## 1.3.2
+
+* Fix kerning.
+
 ## 1.3.1
 
 * Fix nulls.

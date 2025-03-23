@@ -96,10 +96,12 @@ class _MyWidgetState extends State<MyWidget> {
         // -> static numeric text
         Column(
           children: [
-            NumericText(
-              "\$$valueDescription",
-              duration: Durations.medium1,
-              style: style,
+            FittedBox(
+              child: NumericText(
+                "\$$valueDescription",
+                duration: Durations.medium1,
+                style: style,
+              ),
             ),
             Text("Static numeric text", style: subStyle),
           ],
@@ -108,31 +110,33 @@ class _MyWidgetState extends State<MyWidget> {
         // -> animated numeric text
         Column(
           children: [
-            TweenAnimationBuilder(
-              duration: Durations.long1,
-              tween: ColorTween(
-                begin: Colors.white,
-                end: Color.fromARGB(
-                  200,
-                  rng.nextInt(255),
-                  rng.nextInt(255),
-                  rng.nextInt(255),
+            FittedBox(
+              child: TweenAnimationBuilder(
+                duration: Durations.long1,
+                tween: ColorTween(
+                  begin: Colors.white,
+                  end: Color.fromARGB(
+                    200,
+                    rng.nextInt(255),
+                    rng.nextInt(255),
+                    rng.nextInt(255),
+                  ),
                 ),
+                builder: (context, color, child) {
+                  return TweenAnimationBuilder(
+                    duration: Durations.long1,
+                    curve: Curves.fastEaseInToSlowEaseOut,
+                    tween: IntTween(begin: 0, end: value),
+                    builder: (context, v, child) {
+                      return NumericText(
+                        "\$${loc.formatDecimal(v)}",
+                        duration: Durations.long4,
+                        style: style?.copyWith(color: color),
+                      );
+                    },
+                  );
+                },
               ),
-              builder: (context, color, child) {
-                return TweenAnimationBuilder(
-                  duration: Durations.long1,
-                  curve: Curves.fastEaseInToSlowEaseOut,
-                  tween: IntTween(begin: 0, end: value),
-                  builder: (context, v, child) {
-                    return NumericText(
-                      "\$${loc.formatDecimal(v)}",
-                      duration: Durations.long4,
-                      style: style?.copyWith(color: color),
-                    );
-                  },
-                );
-              },
             ),
             Text("Animated numeric text", style: subStyle),
           ],

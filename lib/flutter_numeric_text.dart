@@ -8,7 +8,7 @@ part "./extensions.dart";
 part "./painter.dart";
 part "./renderbox.dart";
 
-class NumericText extends StatelessWidget {
+final class NumericText extends StatelessWidget {
   /// The text to display.
   final String data;
 
@@ -275,6 +275,25 @@ class _NumericTextState extends State<_NumericText>
     _sizes = (_oldPainter.size, _newPainter.size);
   }
 
+  List<Rect> _getGlyphRects(Characters characters, double? width) {
+    final List<Rect> rects = [];
+    final paragraphBuilder = ui.ParagraphBuilder(
+      widget.config.getParagraphStyle(context),
+    );
+    paragraphBuilder.pushStyle(widget.config.getUiTextStyle(context));
+    paragraphBuilder.addText(characters.string);
+    paragraphBuilder.pop();
+    final paragraph = paragraphBuilder.build();
+    paragraph.layout(ui.ParagraphConstraints(width: width ?? .0));
+    for (var i = 0; i < characters.length; i++) {
+      final g = paragraph.getGlyphInfoAt(i);
+      if (g == null) continue;
+      rects.add(g.graphemeClusterLayoutBounds);
+    }
+    paragraph.dispose();
+    return rects;
+  }
+
   /// input:
   /// old | $12.23 abc
   /// new | $4312.23 c
@@ -294,7 +313,7 @@ class _NumericTextState extends State<_NumericText>
     int lineIdx = 0;
     int oldLineTextPosOffset = 0;
     int newLineTextPosOffset = 0;
-    final List<_Line> pairs = [];
+    final List<_Line> lines = [];
 
     while (oldMetrics.elementAtOrNull(lineIdx) != null &&
         newMetrics.elementAtOrNull(lineIdx) != null) {
@@ -311,6 +330,7 @@ class _NumericTextState extends State<_NumericText>
           .take(oldLineBoundary.end - oldLineBoundary.start);
       oldLineTextPosOffset = oldLineBoundary.end + 1;
       final oldNums = oldLineChars.string.allNumbers;
+      final oldRects = _getGlyphRects(oldLineChars, line.oldLineMetrics?.width);
 
       final newLineBoundary = _newPainter.getLineBoundary(
         TextPosition(offset: newLineTextPosOffset),
@@ -320,11 +340,14 @@ class _NumericTextState extends State<_NumericText>
           .take(newLineBoundary.end - newLineBoundary.start);
       newLineTextPosOffset = newLineBoundary.end + 1;
       final newNums = newLineChars.string.allNumbers;
+      final newRects = _getGlyphRects(newLineChars, line.newLineMetrics?.width);
 
       final count = max(oldLineChars.length, newLineChars.length);
       for (int i = 0; i < count; i++) {
         line.oldChars.add(oldLineChars.elementAtOrNull(i));
         line.newChars.add(newLineChars.elementAtOrNull(i));
+        line.oldRects.add(oldRects.elementAtOrNull(i));
+        line.newRects.add(newRects.elementAtOrNull(i));
       }
 
       // find slots before numbers to grow/shrink and fill them with nulls
@@ -362,12 +385,14 @@ class _NumericTextState extends State<_NumericText>
           final command = oldCommands.elementAt(i);
           for (var j = 0; j < command.$2; j++) {
             line.oldChars.insert(command.$1 + j, null);
+            line.oldRects.insert(command.$1 + j, null);
           }
         }
         for (var i = newCommands.length - 1; i >= 0; i--) {
           final command = newCommands.elementAt(i);
           for (var j = 0; j < command.$2; j++) {
             line.newChars.insert(command.$2 + j, null);
+            line.newRects.insert(command.$2 + j, null);
           }
         }
         // equalize lengths
@@ -376,16 +401,20 @@ class _NumericTextState extends State<_NumericText>
             if (line.oldChars.isNotEmpty) {
               if (line.oldChars.last == null) {
                 line.oldChars.removeLast();
+                line.oldRects.removeLast();
               } else {
                 line.newChars.add(null);
+                line.newRects.add(null);
               }
             }
           } else {
             if (line.newChars.isNotEmpty) {
               if (line.newChars.last == null) {
                 line.newChars.removeLast();
+                line.newRects.removeLast();
               } else {
                 line.oldChars.add(null);
+                line.oldRects.add(null);
               }
             }
           }
@@ -393,15 +422,19 @@ class _NumericTextState extends State<_NumericText>
       }
 
       assert(
-        line.oldChars.length == line.newChars.length,
+        line.oldChars.length == line.newChars.length &&
+            line.oldRects.length == line.newRects.length &&
+            line.oldChars.length == line.oldRects.length &&
+            line.newChars.length == line.newRects.length,
         "The length of the chars must be equal. "
-        "${line.oldChars} ${line.newChars}",
+        "${line.oldChars} ${line.newChars} "
+        "${line.oldRects.length} ${line.newRects.length}",
       );
 
-      pairs.add(line);
+      lines.add(line);
       lineIdx++;
     }
-    _data = pairs;
+    _data = lines;
   }
 
   @override
@@ -530,6 +563,8 @@ final class _Line {
   final LineMetrics? newLineMetrics;
   final List<String?> oldChars = [];
   final List<String?> newChars = [];
+  final List<Rect?> oldRects = [];
+  final List<Rect?> newRects = [];
 
   _Line({this.oldLineMetrics, this.newLineMetrics});
 
@@ -554,14 +589,32 @@ final class _Line {
   }
 
   @override
-  operator ==(covariant _Line other) {
-    return hashCode == other.hashCode;
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _Line &&
+        oldLineMetrics == other.oldLineMetrics &&
+        newLineMetrics == other.newLineMetrics &&
+        oldChars == other.oldChars &&
+        newChars == other.newChars &&
+        oldRects == other.oldRects &&
+        newRects == other.newRects;
   }
 
   @override
-  int get hashCode =>
-      oldLineMetrics.hashCode +
-      newLineMetrics.hashCode +
-      oldChars.hashCode +
-      newChars.hashCode;
+  int get hashCode {
+    return Object.hash(
+      oldLineMetrics,
+      newLineMetrics,
+      Object.hashAll(oldChars),
+      Object.hashAll(newChars),
+      Object.hashAll(oldRects),
+      Object.hashAll(newRects),
+    );
+  }
+
+  @override
+  String toString() {
+    m(Rect? rect) => rect != null ? (rect.left * 100).round() / 100.0 : null;
+    return "$oldChars -> $newChars; ${oldRects.map(m)} -> ${newRects.map(m)}";
+  }
 }

@@ -181,8 +181,8 @@ final class _RB extends RenderBox {
     }
 
     for (final line in _data) {
-      double oldCharWidths = .0;
-      double newCharWidths = .0;
+      double oldCharsWidth = .0;
+      double newCharsWidth = .0;
 
       final oldMetrics = line.oldLineMetrics;
       final newMetrics = line.newLineMetrics;
@@ -196,8 +196,17 @@ final class _RB extends RenderBox {
       final dur = _duration > .0 ? _duration : 1.0;
 
       for (var i = 0; i < line.newChars.length; i++) {
-        final pair = (line.oldChars.elementAt(i), line.newChars.elementAt(i));
+        final pair = (
+          line.oldChars.elementAtOrNull(i),
+          line.newChars.elementAtOrNull(i),
+        );
+        final rects = (
+          line.oldRects.elementAtOrNull(i),
+          line.newRects.elementAtOrNull(i),
+        );
         if (pair.isEmpty) continue;
+        final oldPos = rects.$1?.left ?? .0;
+        final newPos = rects.$2?.left ?? .0;
 
         if (pair.isEqual) {
           // draw unchanged data
@@ -209,11 +218,10 @@ final class _RB extends RenderBox {
             newMetrics?.left ?? .0,
           );
           final dx =
-              lineOffset + staticCurve.lerp(oldCharWidths, newCharWidths);
+              lineOffset +
+              staticCurve.lerp(oldPos + oldCharsWidth, newPos + newCharsWidth);
           final dy = (metrics?.lineNumber ?? 0) * (metrics?.height ?? 1.0);
           _charPainter.paint(context.canvas, offset + Offset(dx, dy));
-          oldCharWidths += _charPainter.width;
-          newCharWidths += _charPainter.width;
         } else {
           // draw old data
           if (oldMetrics != null) {
@@ -222,9 +230,7 @@ final class _RB extends RenderBox {
               case true:
                 final start = changeIdx * _delay.clamp(.0, 1.0);
                 final locT = ((_t - start) / dur).clamp(.0, 1.0);
-                _charPainter.text = _span(pair.$2);
-                _charPainter.layout();
-                oldCharWidths += _charPainter.width * locT;
+                oldCharsWidth += (rects.$2?.width ?? .0) * locT;
 
               // draw char
               case false:
@@ -248,7 +254,8 @@ final class _RB extends RenderBox {
                 _charPainter.text = _span(pair.$1, oldStyle);
                 _charPainter.layout();
                 final oldOffset =
-                    offset + Offset(oldMetrics.left + oldCharWidths, yOffset);
+                    offset +
+                    Offset(oldMetrics.left + oldPos + oldCharsWidth, yOffset);
                 _charPainter.paint(context.canvas, oldOffset);
                 var oldPA = (-4.0 * pow(locT - .5, 2) + 1.0).clamp(.0, 1.0);
                 final painter = _Painter(
@@ -257,7 +264,6 @@ final class _RB extends RenderBox {
                   t: oldYCurve,
                 );
                 painter.paint(context.canvas, _charPainter.size);
-                oldCharWidths += _charPainter.width;
             }
           }
 
@@ -270,7 +276,7 @@ final class _RB extends RenderBox {
                 final locT = ((_t - start) / dur).clamp(.0, 1.0);
                 _charPainter.text = _span(pair.$1);
                 _charPainter.layout();
-                newCharWidths -= _charPainter.width * (1.0 - locT);
+                newCharsWidth -= (rects.$1?.width ?? .0) * (1.0 - locT);
 
               // draw char
               case false:
@@ -292,9 +298,9 @@ final class _RB extends RenderBox {
                 _charPainter.layout();
                 _charPainter.paint(
                   context.canvas,
-                  offset + Offset(newMetrics.left + newCharWidths, yOffset),
+                  offset +
+                      Offset(newMetrics.left + newPos + newCharsWidth, yOffset),
                 );
-                newCharWidths += _charPainter.width;
             }
           }
           changeIdx++;
