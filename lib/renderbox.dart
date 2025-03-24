@@ -2,7 +2,7 @@ part of "./flutter_numeric_text.dart";
 
 final class _RB extends RenderBox {
   _RB({
-    required List<_Line> data,
+    required _Line data,
     required double animation,
     required double delay,
     required double duration,
@@ -37,8 +37,8 @@ final class _RB extends RenderBox {
   bool _needsClipping = false;
   ui.Shader? _overflowShader;
 
-  List<_Line> _data;
-  set data(List<_Line> value) {
+  _Line _data;
+  set data(_Line value) {
     if (_data == value) return;
     _data = value;
     markNeedsLayout();
@@ -95,7 +95,7 @@ final class _RB extends RenderBox {
 
   @override
   void performLayout() {
-    if (_data.isEmpty) {
+    if (_data.oldChars.isEmpty && _data.newChars.isEmpty) {
       size = Size.zero;
     } else {
       final curve = Curves.easeInOut.transform(_t);
@@ -124,10 +124,9 @@ final class _RB extends RenderBox {
             _needsClipping = true;
             _overflowShader = null;
             // replace last pair with ellipsis
-            var line = _data.elementAt(_data.length - 1);
-            if (line.newChars.isNotEmpty) {
-              line.oldChars[line.oldChars.length - 1] = _kEllipsis;
-              line.newChars[line.newChars.length - 1] = _kEllipsis;
+            if (_data.newChars.isNotEmpty) {
+              _data.oldChars[_data.oldChars.length - 1] = _kEllipsis;
+              _data.newChars[_data.newChars.length - 1] = _kEllipsis;
             }
           case TextOverflow.fade:
             _needsClipping = true;
@@ -166,7 +165,7 @@ final class _RB extends RenderBox {
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    if (_data.isEmpty) return;
+    if (_data.oldChars.isEmpty && _data.newChars.isEmpty) return;
 
     final staticCurve = Curves.fastOutSlowIn.transform(_t);
 
@@ -180,131 +179,110 @@ final class _RB extends RenderBox {
       context.canvas.clipRect(bounds);
     }
 
-    for (final line in _data) {
-      double oldCharsWidth = .0;
-      double newCharsWidth = .0;
+    double oldCharsWidth = .0;
+    double newCharsWidth = .0;
 
-      final oldMetrics = line.oldLineMetrics;
-      final newMetrics = line.newLineMetrics;
+    final oldOffFrac = .16;
+    final newOffFrac = .14;
 
-      final oldOffstageOffset = (oldMetrics?.height ?? .0) * .16;
-      final newOffstageOffset = (newMetrics?.height ?? .0) * .14;
+    int changeIdx = 0;
+    int nullsIdx = 0;
 
-      int changeIdx = 0;
-      int nullsIdx = 0;
+    final dur = _duration > .0 ? _duration : 1.0;
 
-      final dur = _duration > .0 ? _duration : 1.0;
+    for (var i = 0; i < _data.newChars.length; i++) {
+      final pair = (
+        _data.oldChars.elementAtOrNull(i),
+        _data.newChars.elementAtOrNull(i),
+      );
+      final rects = (
+        _data.oldRects.elementAtOrNull(i),
+        _data.newRects.elementAtOrNull(i),
+      );
+      if (pair.isEmpty) continue;
 
-      for (var i = 0; i < line.newChars.length; i++) {
-        final pair = (
-          line.oldChars.elementAtOrNull(i),
-          line.newChars.elementAtOrNull(i),
+      if (pair.isEqual) {
+        // draw unchanged data
+        _charPainter.text = _span(pair.$2, _config.style);
+        _charPainter.layout();
+        final dx = staticCurve.lerp(
+          (rects.$1?.left ?? .0) + oldCharsWidth,
+          (rects.$2?.left ?? .0) + newCharsWidth,
         );
-        final rects = (
-          line.oldRects.elementAtOrNull(i),
-          line.newRects.elementAtOrNull(i),
+        final dy = staticCurve.lerp(
+          (rects.$1?.top ?? .0),
+          (rects.$2?.top ?? .0),
         );
-        if (pair.isEmpty) continue;
-        final oldPos = rects.$1?.left ?? .0;
-        final newPos = rects.$2?.left ?? .0;
+        _charPainter.paint(context.canvas, offset + Offset(dx, dy));
+      } else {
+        // draw old data
+        switch (pair.$1 == null && rects.$1 == null) {
+          // grow empty space
+          case true:
+            final start = changeIdx * _delay.clamp(.0, 1.0);
+            final locT = ((_t - start) / dur).clamp(.0, 1.0);
+            oldCharsWidth += (rects.$2?.width ?? .0) * locT;
 
-        if (pair.isEqual) {
-          // draw unchanged data
-          final metrics = newMetrics ?? oldMetrics;
-          _charPainter.text = _span(pair.$2, _config.style);
-          _charPainter.layout();
-          final lineOffset = staticCurve.lerp(
-            oldMetrics?.left ?? .0,
-            newMetrics?.left ?? .0,
-          );
-          final dx =
-              lineOffset +
-              staticCurve.lerp(oldPos + oldCharsWidth, newPos + newCharsWidth);
-          final dy = (metrics?.lineNumber ?? 0) * (metrics?.height ?? 1.0);
-          _charPainter.paint(context.canvas, offset + Offset(dx, dy));
-        } else {
-          // draw old data
-          if (oldMetrics != null) {
-            switch (pair.$1 == null) {
-              // grow empty space
-              case true:
-                final start = changeIdx * _delay.clamp(.0, 1.0);
-                final locT = ((_t - start) / dur).clamp(.0, 1.0);
-                oldCharsWidth += (rects.$2?.width ?? .0) * locT;
-
-              // draw char
-              case false:
-                if (pair.$2 == null) nullsIdx++;
-                final start = (changeIdx + nullsIdx) * _delay.clamp(.0, 1.0);
-                final locT = ((_t - start) / dur).clamp(.0, 1.0);
-                final oldYCurve = Curves.fastEaseInToSlowEaseOut.transform(
-                  locT,
-                );
-                final oldACurve = Curves.easeOutQuart
-                    .transform(locT)
-                    .clamp(.0, 1.0);
-                final oldStyle = _config.style?.copyWith(
-                  color: _config.style?.color?.withValues(
-                    alpha: (1.0 - oldACurve) * .8,
-                  ),
-                );
-                final yOffset =
-                    oldMetrics.lineNumber * oldMetrics.height -
-                    oldYCurve * oldOffstageOffset;
-                _charPainter.text = _span(pair.$1, oldStyle);
-                _charPainter.layout();
-                final oldOffset =
-                    offset +
-                    Offset(oldMetrics.left + oldPos + oldCharsWidth, yOffset);
-                _charPainter.paint(context.canvas, oldOffset);
-                var oldPA = (-4.0 * pow(locT - .5, 2) + 1.0).clamp(.0, 1.0);
-                final painter = _Painter(
-                  offset: oldOffset,
-                  color: _config.style?.color?.withValues(alpha: oldPA * .24),
-                  t: oldYCurve,
-                );
-                painter.paint(context.canvas, _charPainter.size);
-            }
-          }
-
-          // draw new data
-          if (newMetrics != null) {
-            switch (pair.$2 == null) {
-              // shrink empty space
-              case true:
-                final start = changeIdx * _delay.clamp(.0, 1.0);
-                final locT = ((_t - start) / dur).clamp(.0, 1.0);
-                _charPainter.text = _span(pair.$1);
-                _charPainter.layout();
-                newCharsWidth -= (rects.$1?.width ?? .0) * (1.0 - locT);
-
-              // draw char
-              case false:
-                if (pair.$1 == null) nullsIdx++;
-                final start = (changeIdx + nullsIdx) * _delay.clamp(.0, 1.0);
-                final locT = ((_t - start) / dur).clamp(.0, 1.0);
-                final newYCurve = Curves.easeOutBack.transform(locT);
-                final newACurve = Curves.easeOutExpo
-                    .transform(locT)
-                    .clamp(.0, 1.0);
-                var newStyle = _config.style?.copyWith(
-                  color: _config.style?.color?.withValues(alpha: newACurve),
-                );
-                final yOffset =
-                    newMetrics.lineNumber * newMetrics.height -
-                    newOffstageOffset +
-                    newYCurve * newOffstageOffset;
-                _charPainter.text = _span(pair.$2, newStyle);
-                _charPainter.layout();
-                _charPainter.paint(
-                  context.canvas,
-                  offset +
-                      Offset(newMetrics.left + newPos + newCharsWidth, yOffset),
-                );
-            }
-          }
-          changeIdx++;
+          // draw char
+          case false:
+            if (pair.$2 == null) nullsIdx++;
+            final start = (changeIdx + nullsIdx) * _delay.clamp(.0, 1.0);
+            final locT = ((_t - start) / dur).clamp(.0, 1.0);
+            final oldYCurve = Curves.fastEaseInToSlowEaseOut.transform(locT);
+            final oldACurve = Curves.easeOutQuart
+                .transform(locT)
+                .clamp(.0, 1.0);
+            final oldStyle = _config.style?.copyWith(
+              color: _config.style?.color?.withValues(
+                alpha: (1.0 - oldACurve) * .8,
+              ),
+            );
+            final x = rects.$1?.left ?? .0;
+            final y = rects.$1?.top ?? .0;
+            final h = rects.$1?.height ?? .0;
+            final dx = x + oldCharsWidth;
+            final dy = y - oldYCurve * h * oldOffFrac;
+            final oldOffset = offset + Offset(dx, dy);
+            _charPainter.text = _span(pair.$1, oldStyle);
+            _charPainter.layout();
+            _charPainter.paint(context.canvas, oldOffset);
+            var oldPA = (-4.0 * pow(locT - .5, 2) + 1.0).clamp(.0, 1.0);
+            final painter = _Painter(
+              offset: oldOffset,
+              color: _config.style?.color?.withValues(alpha: oldPA * .24),
+              t: oldYCurve,
+            );
+            painter.paint(context.canvas, _charPainter.size);
         }
+
+        // draw new data
+        switch (pair.$2 == null && rects.$2 == null) {
+          // shrink empty space
+          case true:
+            final start = changeIdx * _delay.clamp(.0, 1.0);
+            final locT = ((_t - start) / dur).clamp(.0, 1.0);
+            newCharsWidth -= (rects.$1?.width ?? .0) * (1.0 - locT);
+
+          // draw char
+          case false:
+            if (pair.$1 == null) nullsIdx++;
+            final start = (changeIdx + nullsIdx) * _delay.clamp(.0, 1.0);
+            final locT = ((_t - start) / dur).clamp(.0, 1.0);
+            final newYCurve = Curves.easeOutBack.transform(locT);
+            final newACurve = Curves.easeOutExpo.transform(locT).clamp(.0, 1.0);
+            var newStyle = _config.style?.copyWith(
+              color: _config.style?.color?.withValues(alpha: newACurve),
+            );
+            final x = rects.$2?.left ?? .0;
+            final y = rects.$2?.top ?? .0;
+            final h = rects.$2?.height ?? .0;
+            var dx = x + newCharsWidth;
+            final dy = y - h * newOffFrac + newYCurve * h * newOffFrac;
+            _charPainter.text = _span(pair.$2, newStyle);
+            _charPainter.layout();
+            _charPainter.paint(context.canvas, offset + Offset(dx, dy));
+        }
+        changeIdx++;
       }
     }
 

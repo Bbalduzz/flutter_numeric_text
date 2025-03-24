@@ -1,6 +1,6 @@
 name: flutter_numeric_text
 description: "This widget allows you to animate any text. The widget is easy to use and allows you to seamlessly replace Text(data) with NumericText(data)."
-version: 1.3.2
+version: 1.3.3
 homepage: https://github.com/strash/flutter_numeric_text
 repository: https://github.com/strash/flutter_numeric_text
 

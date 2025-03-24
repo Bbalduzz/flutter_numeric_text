@@ -1,3 +1,7 @@
+## 1.3.3
+
+* Fix some rendering issues.
+
 ## 1.3.2
 
 * Fix kerning.

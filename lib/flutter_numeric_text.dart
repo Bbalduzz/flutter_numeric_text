@@ -232,7 +232,7 @@ class _NumericTextState extends State<_NumericText>
 
   late String _oldData = widget.data;
   (Size, Size) _sizes = (Size.zero, Size.zero);
-  List<_Line> _data = [];
+  _Line _data = _Line();
 
   Duration _delay = Duration.zero;
   Duration _duration = Duration.zero;
@@ -275,7 +275,11 @@ class _NumericTextState extends State<_NumericText>
     _sizes = (_oldPainter.size, _newPainter.size);
   }
 
-  List<Rect> _getGlyphRects(Characters characters, double? width) {
+  (Characters, List<Rect>) _getGlyphRects(
+    Characters characters,
+    double? width,
+  ) {
+    final List<String> chars = [];
     final List<Rect> rects = [];
     final paragraphBuilder = ui.ParagraphBuilder(
       widget.config.getParagraphStyle(context),
@@ -285,13 +289,21 @@ class _NumericTextState extends State<_NumericText>
     paragraphBuilder.pop();
     final paragraph = paragraphBuilder.build();
     paragraph.layout(ui.ParagraphConstraints(width: width ?? .0));
-    for (var i = 0; i < characters.length; i++) {
-      final g = paragraph.getGlyphInfoAt(i);
-      if (g == null) continue;
-      rects.add(g.graphemeClusterLayoutBounds);
+    int boundary = 0;
+    while (true) {
+      final l = paragraph.getLineBoundary(TextPosition(offset: boundary));
+      if (!l.isValid) break;
+      for (var i = 0; i < l.end; i++) {
+        final index = i + max(0, boundary - 1).toInt();
+        final g = paragraph.getGlyphInfoAt(index);
+        if (g == null) continue;
+        chars.add(characters.elementAt(index));
+        rects.add(g.graphemeClusterLayoutBounds);
+      }
+      boundary = l.end + 1;
     }
     paragraph.dispose();
-    return rects;
+    return (chars.join().characters, rects);
   }
 
   /// input:
@@ -305,136 +317,108 @@ class _NumericTextState extends State<_NumericText>
   /// old nulls are growing over the time
   /// new nulls are shrinking
   void _computeData() {
-    final oldChars = _oldData.characters;
-    final newChars = widget.data.characters;
-    final oldMetrics = _oldPainter.computeLineMetrics();
-    final newMetrics = _newPainter.computeLineMetrics();
-
-    int lineIdx = 0;
-    int oldLineTextPosOffset = 0;
-    int newLineTextPosOffset = 0;
-    final List<_Line> lines = [];
-
-    while (oldMetrics.elementAtOrNull(lineIdx) != null &&
-        newMetrics.elementAtOrNull(lineIdx) != null) {
-      final line = _Line(
-        oldLineMetrics: oldMetrics.elementAtOrNull(lineIdx),
-        newLineMetrics: newMetrics.elementAtOrNull(lineIdx),
-      );
-
-      final oldLineBoundary = _oldPainter.getLineBoundary(
-        TextPosition(offset: oldLineTextPosOffset),
-      );
-      final oldLineChars = oldChars
-          .skip(oldLineBoundary.start)
-          .take(oldLineBoundary.end - oldLineBoundary.start);
-      oldLineTextPosOffset = oldLineBoundary.end + 1;
-      final oldNums = oldLineChars.string.allNumbers;
-      final oldRects = _getGlyphRects(oldLineChars, line.oldLineMetrics?.width);
-
-      final newLineBoundary = _newPainter.getLineBoundary(
-        TextPosition(offset: newLineTextPosOffset),
-      );
-      final newLineChars = newChars
-          .skip(newLineBoundary.start)
-          .take(newLineBoundary.end - newLineBoundary.start);
-      newLineTextPosOffset = newLineBoundary.end + 1;
-      final newNums = newLineChars.string.allNumbers;
-      final newRects = _getGlyphRects(newLineChars, line.newLineMetrics?.width);
-
-      final count = max(oldLineChars.length, newLineChars.length);
-      for (int i = 0; i < count; i++) {
-        line.oldChars.add(oldLineChars.elementAtOrNull(i));
-        line.newChars.add(newLineChars.elementAtOrNull(i));
-        line.oldRects.add(oldRects.elementAtOrNull(i));
-        line.newRects.add(newRects.elementAtOrNull(i));
-      }
-
-      // find slots before numbers to grow/shrink and fill them with nulls
-      if (oldNums.isNotEmpty &&
-          newNums.isNotEmpty &&
-          oldLineChars.length != newLineChars.length) {
-        // (start, length)
-        final List<(int, int)> oldCommands = [];
-        final List<(int, int)> newCommands = [];
-        int oldInsertLength = 0;
-        int newInsertLength = 0;
-        // create commands to execute
-        int numIdx = 0;
-        while (true) {
-          final oldNum = oldNums.elementAtOrNull(numIdx);
-          final newNum = newNums.elementAtOrNull(numIdx);
-          if (oldNum == null || newNum == null) break;
-          var oldNumLength = oldNum.end - oldNum.start;
-          var newNumLength = newNum.end - newNum.start;
-          if (oldNumLength != newNumLength) {
-            if (oldNumLength > newNumLength) {
-              var length = oldNumLength - newNumLength;
-              newCommands.add((newNum.start, length));
-              newInsertLength += length;
-            } else {
-              var length = newNumLength - oldNumLength;
-              oldCommands.add((oldNum.start, length));
-              oldInsertLength += length;
-            }
-          }
-          numIdx++;
-        }
-        // execute commands in reversed order
-        for (var i = oldCommands.length - 1; i >= 0; i--) {
-          final command = oldCommands.elementAt(i);
-          for (var j = 0; j < command.$2; j++) {
-            line.oldChars.insert(command.$1 + j, null);
-            line.oldRects.insert(command.$1 + j, null);
-          }
-        }
-        for (var i = newCommands.length - 1; i >= 0; i--) {
-          final command = newCommands.elementAt(i);
-          for (var j = 0; j < command.$2; j++) {
-            line.newChars.insert(command.$2 + j, null);
-            line.newRects.insert(command.$2 + j, null);
-          }
-        }
-        // equalize lengths
-        for (var i = 0; i < (oldInsertLength - newInsertLength).abs(); i++) {
-          if (oldInsertLength > newInsertLength) {
-            if (line.oldChars.isNotEmpty) {
-              if (line.oldChars.last == null) {
-                line.oldChars.removeLast();
-                line.oldRects.removeLast();
-              } else {
-                line.newChars.add(null);
-                line.newRects.add(null);
-              }
-            }
-          } else {
-            if (line.newChars.isNotEmpty) {
-              if (line.newChars.last == null) {
-                line.newChars.removeLast();
-                line.newRects.removeLast();
-              } else {
-                line.oldChars.add(null);
-                line.oldRects.add(null);
-              }
-            }
-          }
-        }
-      }
-
-      assert(
-        line.oldChars.length == line.newChars.length &&
-            line.oldRects.length == line.newRects.length &&
-            line.oldChars.length == line.oldRects.length &&
-            line.newChars.length == line.newRects.length,
-        "The length of the chars must be equal. "
-        "${line.oldChars} ${line.newChars} "
-        "${line.oldRects.length} ${line.newRects.length}",
-      );
-
-      lines.add(line);
-      lineIdx++;
+    final line = _Line();
+    final (oldChars, oldRects) = _getGlyphRects(
+      _oldData.characters,
+      _sizes.$1.width,
+    );
+    final (newChars, newRects) = _getGlyphRects(
+      widget.data.characters,
+      _sizes.$2.width,
+    );
+    final oldNums = oldChars.string.allNumbers;
+    final newNums = newChars.string.allNumbers;
+    final count = max(oldChars.length, newChars.length);
+    for (int i = 0; i < count; i++) {
+      line.oldChars.add(oldChars.elementAtOrNull(i));
+      line.newChars.add(newChars.elementAtOrNull(i));
+      line.oldRects.add(oldRects.elementAtOrNull(i));
+      line.newRects.add(newRects.elementAtOrNull(i));
     }
-    _data = lines;
+
+    // find slots before numbers to grow/shrink and fill them with nulls
+    if (oldNums.isNotEmpty &&
+        newNums.isNotEmpty &&
+        oldChars.length != newChars.length) {
+      // (start, length)
+      final List<(int, int)> oldCommands = [];
+      final List<(int, int)> newCommands = [];
+      int oldInsertLength = 0;
+      int newInsertLength = 0;
+      // create commands to execute
+      int numIdx = 0;
+      while (true) {
+        final oldNum = oldNums.elementAtOrNull(numIdx);
+        final newNum = newNums.elementAtOrNull(numIdx);
+        if (oldNum == null || newNum == null) break;
+        var oldNumLength = oldNum.end - oldNum.start;
+        var newNumLength = newNum.end - newNum.start;
+        if (oldNumLength != newNumLength) {
+          if (oldNumLength > newNumLength) {
+            var length = oldNumLength - newNumLength;
+            newCommands.add((newNum.start, length));
+            newInsertLength += length;
+          } else {
+            var length = newNumLength - oldNumLength;
+            oldCommands.add((oldNum.start, length));
+            oldInsertLength += length;
+          }
+        }
+        numIdx++;
+      }
+      // execute commands in reversed order
+      for (var i = oldCommands.length - 1; i >= 0; i--) {
+        final command = oldCommands.elementAt(i);
+        for (var j = 0; j < command.$2; j++) {
+          line.oldChars.insert(command.$1 + j, null);
+          line.oldRects.insert(command.$1 + j, null);
+        }
+      }
+      for (var i = newCommands.length - 1; i >= 0; i--) {
+        final command = newCommands.elementAt(i);
+        for (var j = 0; j < command.$2; j++) {
+          line.newChars.insert(command.$2 + j, null);
+          line.newRects.insert(command.$2 + j, null);
+        }
+      }
+      // equalize lengths
+      for (var i = 0; i < (oldInsertLength - newInsertLength).abs(); i++) {
+        if (oldInsertLength > newInsertLength) {
+          if (line.oldChars.isNotEmpty) {
+            if (line.oldChars.last == null) {
+              line.oldChars.removeLast();
+              line.oldRects.removeLast();
+            } else {
+              line.newChars.add(null);
+              line.newRects.add(null);
+            }
+          }
+        } else {
+          if (line.newChars.isNotEmpty) {
+            if (line.newChars.last == null) {
+              line.newChars.removeLast();
+              line.newRects.removeLast();
+            } else {
+              line.oldChars.add(null);
+              line.oldRects.add(null);
+            }
+          }
+        }
+      }
+    }
+
+    assert(
+      line.oldChars.length == line.newChars.length &&
+          line.oldRects.length == line.newRects.length &&
+          line.oldChars.length == line.oldRects.length &&
+          line.newChars.length == line.newRects.length,
+      "The length of the chars must be equal. "
+      "${line.oldChars} ${line.newChars} "
+      "${line.oldRects.length} ${line.newRects.length}",
+    );
+
+    // print(line);
+    _data = line;
   }
 
   @override
@@ -443,10 +427,7 @@ class _NumericTextState extends State<_NumericText>
     _updatePainters();
     _computeSizes();
     _computeData();
-    final diffCount = _data.fold(
-      -1,
-      (prev, curr) => prev + curr.diffCount + curr.nullsCount,
-    );
+    final diffCount = _data.diffCount + _data.nullsCount;
     _duration = widget.duration ?? _defaultDurationPerChange;
     _delay = _duration * .18;
     _controller.duration = _duration + _delay * max(0, diffCount);
@@ -511,7 +492,7 @@ class _NumericTextState extends State<_NumericText>
 }
 
 final class _Text extends LeafRenderObjectWidget {
-  final List<_Line> data;
+  final _Line data;
   final Animation<double> animation;
   final double delay;
   final double duration;
@@ -559,14 +540,10 @@ final class _Text extends LeafRenderObjectWidget {
 }
 
 final class _Line {
-  final LineMetrics? oldLineMetrics;
-  final LineMetrics? newLineMetrics;
   final List<String?> oldChars = [];
   final List<String?> newChars = [];
   final List<Rect?> oldRects = [];
   final List<Rect?> newRects = [];
-
-  _Line({this.oldLineMetrics, this.newLineMetrics});
 
   int get diffCount {
     int count = 0;
@@ -592,8 +569,6 @@ final class _Line {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is _Line &&
-        oldLineMetrics == other.oldLineMetrics &&
-        newLineMetrics == other.newLineMetrics &&
         oldChars == other.oldChars &&
         newChars == other.newChars &&
         oldRects == other.oldRects &&
@@ -603,8 +578,6 @@ final class _Line {
   @override
   int get hashCode {
     return Object.hash(
-      oldLineMetrics,
-      newLineMetrics,
       Object.hashAll(oldChars),
       Object.hashAll(newChars),
       Object.hashAll(oldRects),
@@ -614,7 +587,6 @@ final class _Line {
 
   @override
   String toString() {
-    m(Rect? rect) => rect != null ? (rect.left * 100).round() / 100.0 : null;
-    return "$oldChars -> $newChars; ${oldRects.map(m)} -> ${newRects.map(m)}";
+    return "$oldChars\n\t $newChars\n\t $oldRects\n\t $newRects";
   }
 }

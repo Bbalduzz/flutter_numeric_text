@@ -43,6 +43,24 @@ class MyWidget extends StatelessWidget {
 }
 ```
 
+### With `GoogleFonts`
+
+```dart
+...
+    NumericText(
+      "12345 or text",
+      duration: const Duration(milliseconds: 300),
+      style: GoogleFonts.<your_font>(
+        fontSize: 24,
+        color: Colors.black,
+        // Just a friendly reminder to add the [textStyle] field.
+        // It'll make sure everything calculates correctly.
+        textStyle: Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
+...
+```
+
 ## Installation
 
 To use this package, add it to your `pubspec.yaml` file:
